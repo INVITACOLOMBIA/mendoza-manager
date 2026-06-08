@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 
 const links = [
   { href: "/", label: "Dashboard" },
@@ -21,6 +22,12 @@ const links = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  async function logout() {
+    await supabase.auth.signOut();
+    router.push("/login");
+  }
 
   return (
     <aside style={{
@@ -68,6 +75,23 @@ export function Sidebar() {
           );
         })}
       </nav>
+
+      <button
+        onClick={logout}
+        style={{
+          marginTop: 20,
+          width: "100%",
+          border: "1px solid #F4C7C7",
+          background: "#FDE2E5",
+          color: "#B42318",
+          borderRadius: 16,
+          padding: "12px 14px",
+          fontWeight: 900,
+          cursor: "pointer"
+        }}
+      >
+        Cerrar sesión
+      </button>
     </aside>
   );
 }
