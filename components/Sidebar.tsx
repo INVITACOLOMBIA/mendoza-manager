@@ -30,7 +30,7 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="fixed left-0 top-0 z-[9999] hidden h-screen w-72 flex-col border-r border-slate-800 bg-slate-950 text-white shadow-2xl lg:flex">
+    <aside className="fixed left-0 top-0 z-[99999] flex h-screen w-72 flex-col border-r border-slate-800 bg-slate-950 text-white shadow-2xl">
       <div className="border-b border-slate-800 px-6 py-6">
         <p className="text-xs font-black uppercase tracking-[0.35em] text-teal-300">
           Mendoza

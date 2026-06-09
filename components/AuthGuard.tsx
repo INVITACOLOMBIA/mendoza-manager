@@ -83,7 +83,7 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-slate-50">
       <Sidebar />
 
-      <div className="min-h-screen lg:pl-72">
+      <div className="min-h-screen pl-72">
         {children}
       </div>
     </div>
