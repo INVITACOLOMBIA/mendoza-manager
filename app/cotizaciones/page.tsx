@@ -558,8 +558,23 @@ export default function CotizacionesPage() {
   function printQuote(quote: Quote) {
     const client = clientData(quote.client_id);
     const rows = itemsByQuote(quote.id);
+
+    function escapeHtml(value: unknown) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
     const methodsHtml = paymentMethods
-      .map((method) => `<p><b>${paymentName(method)}:</b> ${paymentLabel(method)} ${paymentDestination(method)}</p>`)
+      .map(
+        (method) =>
+          `<p><b>${escapeHtml(paymentName(method))}:</b> ${escapeHtml(
+            paymentLabel(method)
+          )} ${escapeHtml(paymentDestination(method))}</p>`
+      )
       .join("");
 
     const quoteAdvance = rows.some((item) => item.requires_advance)
@@ -567,40 +582,90 @@ export default function CotizacionesPage() {
       : 0;
 
     const html = `
+      <!doctype html>
       <html>
         <head>
-          <title>${quote.quote_number}</title>
+          <meta charset="utf-8" />
+          <title>${escapeHtml(quote.quote_number)}</title>
           <style>
-            body { font-family: Arial, sans-serif; padding: 32px; color: #0B1F33; }
-            .header { display: flex; justify-content: space-between; border-bottom: 2px solid #0B1F33; padding-bottom: 16px; margin-bottom: 24px; }
+            * { box-sizing: border-box; }
+            body {
+              font-family: Arial, sans-serif;
+              padding: 32px;
+              color: #0B1F33;
+              background: #ffffff;
+            }
+            .header {
+              display: flex;
+              justify-content: space-between;
+              gap: 24px;
+              border-bottom: 2px solid #0B1F33;
+              padding-bottom: 16px;
+              margin-bottom: 24px;
+            }
             h1, h2, h3, p { margin: 0 0 8px; }
             .muted { color: #5D7485; }
-            table { width: 100%; border-collapse: collapse; margin-top: 24px; }
-            th, td { padding: 12px; border-bottom: 1px solid #D8E8E5; text-align: left; vertical-align: top; }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 24px;
+            }
+            th, td {
+              padding: 12px;
+              border-bottom: 1px solid #D8E8E5;
+              text-align: left;
+              vertical-align: top;
+            }
             th { background: #EAF8F5; }
-            .total { margin-top: 24px; text-align: right; font-size: 20px; }
-            .box { margin-top: 24px; padding: 16px; background: #F4FBFA; border: 1px solid #D8E8E5; border-radius: 16px; }
-            .qr { width: 130px; height: 130px; object-fit: contain; border: 1px solid #D8E8E5; border-radius: 12px; padding: 6px; background: white; }
+            .total {
+              margin-top: 24px;
+              text-align: right;
+              font-size: 20px;
+            }
+            .box {
+              margin-top: 24px;
+              padding: 16px;
+              background: #F4FBFA;
+              border: 1px solid #D8E8E5;
+              border-radius: 16px;
+            }
+            .qr {
+              width: 130px;
+              height: 130px;
+              object-fit: contain;
+              border: 1px solid #D8E8E5;
+              border-radius: 12px;
+              padding: 6px;
+              background: white;
+            }
+            @media print {
+              body { padding: 24px; }
+              .no-print { display: none !important; }
+            }
           </style>
         </head>
+
         <body>
           <div class="header">
             <div>
-              <h1>${settings?.business_name || "Mendoza Manager"}</h1>
-              <p class="muted">${settings?.address || ""} ${settings?.city || ""}</p>
-              <p class="muted">${settings?.email || ""} ${settings?.whatsapp ? " · WhatsApp: " + settings.whatsapp : ""}</p>
+              <h1>${escapeHtml(settings?.business_name || "Mendoza Manager")}</h1>
+              <p class="muted">${escapeHtml(settings?.address || "")} ${escapeHtml(settings?.city || "")}</p>
+              <p class="muted">${escapeHtml(settings?.email || "")} ${
+                settings?.whatsapp ? " · WhatsApp: " + escapeHtml(settings.whatsapp) : ""
+              }</p>
             </div>
+
             <div>
-              <h2>${quote.quote_number}</h2>
+              <h2>${escapeHtml(quote.quote_number)}</h2>
               <p class="muted">Cotización</p>
-              <p><b>Válida hasta:</b> ${dateText(quote.valid_until)}</p>
+              <p><b>Válida hasta:</b> ${escapeHtml(dateText(quote.valid_until))}</p>
             </div>
           </div>
 
-          <p><b>Cliente:</b> ${client?.full_name ?? "Sin cliente"}</p>
-          <p><b>Documento:</b> ${client?.document_number ?? "—"}</p>
-          <p><b>Teléfono:</b> ${client?.phone ?? "—"}</p>
-          <p><b>Entrega:</b> ${quote.delivery_time ?? "Por confirmar"}</p>
+          <p><b>Cliente:</b> ${escapeHtml(client?.full_name ?? "Sin cliente")}</p>
+          <p><b>Documento:</b> ${escapeHtml(client?.document_number ?? "—")}</p>
+          <p><b>Teléfono:</b> ${escapeHtml(client?.phone ?? "—")}</p>
+          <p><b>Entrega:</b> ${escapeHtml(quote.delivery_time ?? "Por confirmar")}</p>
 
           <table>
             <thead>
@@ -612,44 +677,86 @@ export default function CotizacionesPage() {
               </tr>
             </thead>
             <tbody>
-              ${rows.map((item) => `
-                <tr>
-                  <td>${item.description}${item.requires_advance ? "<br><small>Requiere anticipo</small>" : ""}</td>
-                  <td>${item.quantity ?? 1}</td>
-                  <td>${money(item.unit_price)}</td>
-                  <td>${money(item.total)}</td>
-                </tr>
-              `).join("")}
+              ${
+                rows.length > 0
+                  ? rows
+                      .map(
+                        (item) => `
+                          <tr>
+                            <td>
+                              ${escapeHtml(item.description)}
+                              ${item.requires_advance ? "<br><small>Requiere anticipo</small>" : ""}
+                            </td>
+                            <td>${escapeHtml(item.quantity ?? 1)}</td>
+                            <td>${escapeHtml(money(item.unit_price))}</td>
+                            <td>${escapeHtml(money(item.total))}</td>
+                          </tr>
+                        `
+                      )
+                      .join("")
+                  : `<tr><td colspan="4">Sin ítems registrados.</td></tr>`
+              }
             </tbody>
           </table>
 
           <div class="total">
-            <p>Subtotal: <b>${money(quote.subtotal)}</b></p>
-            <p>Descuento: <b>${money(quote.discount)}</b></p>
-            <p>Total: <b>${money(quote.total)}</b></p>
-            ${quoteAdvance > 0 ? `<p>Anticipo sugerido 50%: <b>${money(quoteAdvance)}</b></p>` : ""}
+            <p>Subtotal: <b>${escapeHtml(money(quote.subtotal))}</b></p>
+            <p>Descuento: <b>${escapeHtml(money(quote.discount))}</b></p>
+            <p>Total: <b>${escapeHtml(money(quote.total))}</b></p>
+            ${quoteAdvance > 0 ? `<p>Anticipo sugerido 50%: <b>${escapeHtml(money(quoteAdvance))}</b></p>` : ""}
           </div>
 
           <div class="box">
             <h3>Notas</h3>
-            <p>${quote.notes ?? "Sin observaciones."}</p>
+            <p>${escapeHtml(quote.notes ?? "Sin observaciones.")}</p>
           </div>
 
           <div class="box">
             <h3>Medios de pago</h3>
             ${methodsHtml || "<p>No hay medios de pago registrados.</p>"}
-            ${settings?.payment_qr_url ? `<br><img class="qr" src="${settings.payment_qr_url}" />` : ""}
+            ${
+              settings?.payment_qr_url
+                ? `<br><img class="qr" src="${escapeHtml(settings.payment_qr_url)}" />`
+                : ""
+            }
           </div>
         </body>
       </html>
     `;
 
-    const win = window.open("", "_blank", "width=900,height=700");
-    if (!win) return;
-    win.document.write(html);
-    win.document.close();
-    win.focus();
-    win.print();
+    const iframe = document.createElement("iframe");
+
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    iframe.style.opacity = "0";
+
+    document.body.appendChild(iframe);
+
+    const printWindow = iframe.contentWindow;
+    const printDocument = iframe.contentDocument || printWindow?.document;
+
+    if (!printWindow || !printDocument) {
+      iframe.remove();
+      alert("No se pudo abrir la impresión. Intenta nuevamente.");
+      return;
+    }
+
+    printDocument.open();
+    printDocument.write(html);
+    printDocument.close();
+
+    setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+
+      setTimeout(() => {
+        iframe.remove();
+      }, 2000);
+    }, 600);
   }
 
   return (
