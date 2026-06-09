@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
-const links = [
+const menuItems = [
   { href: "/", label: "Dashboard" },
   { href: "/clientes", label: "Clientes" },
   { href: "/prospectos", label: "Prospectos" },
@@ -13,85 +13,68 @@ const links = [
   { href: "/facturacion", label: "Facturación" },
   { href: "/pagos", label: "Pagos" },
   { href: "/cuentas-cobro", label: "Cuentas de cobro" },
-  { href: "/ordenes", label: "Órdenes" },
+  { href: "/ordenes", label: "Órdenes de trabajo" },
   { href: "/calendario", label: "Calendario" },
   { href: "/tareas", label: "Tareas" },
   { href: "/documentos", label: "Documentos" },
   { href: "/configuracion", label: "Configuración" },
 ];
 
-export function Sidebar() {
+export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
 
   async function logout() {
     await supabase.auth.signOut();
-    router.push("/login");
+    router.replace("/login");
   }
 
   return (
-    <aside style={{
-      width: 280,
-      minHeight: "100vh",
-      background: "#FFFFFF",
-      borderRight: "1px solid #D8E8E5",
-      padding: 20,
-      position: "sticky",
-      top: 0
-    }}>
-      <div style={{
-        background: "#0B1F33",
-        color: "#FFFFFF",
-        borderRadius: 24,
-        padding: 20,
-        marginBottom: 24
-      }}>
-        <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: "#9FE8DD", letterSpacing: 3 }}>
-          SISTEMA
+    <aside className="fixed left-0 top-0 z-[9999] hidden h-screen w-72 flex-col border-r border-slate-800 bg-slate-950 text-white shadow-2xl lg:flex">
+      <div className="border-b border-slate-800 px-6 py-6">
+        <p className="text-xs font-black uppercase tracking-[0.35em] text-teal-300">
+          Mendoza
         </p>
-        <h2 style={{ margin: "8px 0 0", fontSize: 24, fontWeight: 900 }}>
-          Mendoza Manager
-        </h2>
+        <h1 className="mt-2 text-2xl font-black tracking-tight">
+          Manager
+        </h1>
+        <p className="mt-2 text-sm font-semibold text-slate-400">
+          Gestión comercial y operativa
+        </p>
       </div>
 
-      <nav style={{ display: "grid", gap: 8 }}>
-        {links.map((link) => {
-          const active = pathname === link.href;
+      <nav className="flex-1 space-y-1 overflow-y-auto px-4 py-5">
+        {menuItems.map((item) => {
+          const active =
+            item.href === "/"
+              ? pathname === "/"
+              : pathname.startsWith(item.href);
+
           return (
             <Link
-              key={link.href}
-              href={link.href}
-              style={{
-                textDecoration: "none",
-                padding: "12px 14px",
-                borderRadius: 16,
-                fontWeight: 800,
-                color: active ? "#0F766E" : "#34495E",
-                background: active ? "#DDF4F2" : "transparent"
-              }}
+              key={item.href}
+              href={item.href}
+              className={
+                active
+                  ? "flex items-center rounded-2xl bg-teal-500 px-4 py-3 text-sm font-black text-slate-950"
+                  : "flex items-center rounded-2xl px-4 py-3 text-sm font-bold text-slate-300 transition hover:bg-slate-800 hover:text-white"
+              }
             >
-              {link.label}
+              {item.label}
             </Link>
           );
         })}
       </nav>
 
-      <button
-        onClick={logout}
-        style={{
-          marginTop: 20,
-          width: "100%",
-          border: "1px solid #F4C7C7",
-          background: "#FDE2E5",
-          color: "#B42318",
-          borderRadius: 16,
-          padding: "12px 14px",
-          fontWeight: 900,
-          cursor: "pointer"
-        }}
-      >
-        Cerrar sesión
-      </button>
+      <div className="border-t border-slate-800 p-4">
+        <button
+          type="button"
+          onClick={logout}
+          className="w-full rounded-2xl bg-red-500/10 px-4 py-3 text-left text-sm font-black text-red-300 transition hover:bg-red-500 hover:text-white"
+        >
+          Cerrar sesión
+        </button>
+      </div>
     </aside>
   );
 }

@@ -317,7 +317,7 @@ export default function CatalogoPage() {
   }
 
   return (
-    <main className="w-full bg-slate-50 px-4 py-6 text-slate-900 sm:px-6">
+    <main className="min-h-screen bg-slate-50 px-4 py-6 text-slate-900 sm:px-6">
       <section className="mx-auto w-full max-w-7xl space-y-6">
         <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>

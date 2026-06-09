@@ -1,66 +1,91 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import Sidebar from "@/components/Sidebar";
 
-export function AuthGuard({ children }: { children: React.ReactNode }) {
+export default function AuthGuard({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [checking, setChecking] = useState(true);
+  const isLoginPage = pathname === "/login";
+
+  const [loading, setLoading] = useState(true);
+  const [authenticated, setAuthenticated] = useState(false);
 
   useEffect(() => {
+    let mounted = true;
+
     async function checkSession() {
-      if (pathname === "/login") {
-        setChecking(false);
-        return;
-      }
-
       const { data } = await supabase.auth.getSession();
+      const hasSession = Boolean(data.session);
 
-      if (!data.session) {
-        router.push("/login");
-        return;
+      if (!mounted) return;
+
+      setAuthenticated(hasSession);
+      setLoading(false);
+
+      if (!hasSession && !isLoginPage) {
+        router.replace("/login");
       }
 
-      setChecking(false);
+      if (hasSession && isLoginPage) {
+        router.replace("/");
+      }
     }
 
     checkSession();
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session && pathname !== "/login") {
-        router.push("/login");
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      const hasSession = Boolean(session);
+
+      setAuthenticated(hasSession);
+
+      if (!hasSession && !isLoginPage) {
+        router.replace("/login");
+      }
+
+      if (hasSession && isLoginPage) {
+        router.replace("/");
       }
     });
 
     return () => {
-      listener.subscription.unsubscribe();
+      mounted = false;
+      subscription.unsubscribe();
     };
-  }, [pathname, router]);
+  }, [isLoginPage, router]);
 
-  if (checking) {
+  if (loading) {
     return (
-      <main style={{
-        minHeight: "100vh",
-        display: "grid",
-        placeItems: "center",
-        background: "#F4FBFA",
-        color: "#0B1F33",
-        fontFamily: "Arial, Helvetica, sans-serif",
-      }}>
-        <div style={{
-          background: "#FFFFFF",
-          border: "1px solid #D8E8E5",
-          borderRadius: 28,
-          padding: 32,
-          fontWeight: 900,
-        }}>
-          Cargando Mendoza Manager...
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
+        <div className="text-center">
+          <p className="text-sm font-black uppercase tracking-[0.35em] text-teal-300">
+            Mendoza Manager
+          </p>
+          <p className="mt-4 text-xl font-black">Cargando sistema...</p>
         </div>
-      </main>
+      </div>
     );
   }
 
-  return <>{children}</>;
+  if (isLoginPage) {
+    return <>{children}</>;
+  }
+
+  if (!authenticated) {
+    return null;
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <Sidebar />
+
+      <div className="min-h-screen lg:pl-72">
+        {children}
+      </div>
+    </div>
+  );
 }
