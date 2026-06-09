@@ -30,20 +30,45 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="fixed left-0 top-0 z-[99999] flex h-screen w-72 flex-col border-r border-slate-800 bg-slate-950 text-white shadow-2xl">
-      <div className="border-b border-slate-800 px-6 py-6">
-        <p className="text-xs font-black uppercase tracking-[0.35em] text-teal-300">
+    <aside
+      style={{
+        position: "fixed",
+        left: 0,
+        top: 0,
+        bottom: 0,
+        width: "288px",
+        backgroundColor: "#020617",
+        color: "#ffffff",
+        zIndex: 999999,
+        display: "flex",
+        flexDirection: "column",
+        borderRight: "1px solid #1e293b",
+        boxShadow: "0 20px 40px rgba(15, 23, 42, 0.35)",
+      }}
+    >
+      <div style={{ padding: "24px", borderBottom: "1px solid #1e293b" }}>
+        <p
+          style={{
+            fontSize: "12px",
+            fontWeight: 900,
+            letterSpacing: "0.35em",
+            textTransform: "uppercase",
+            color: "#5eead4",
+          }}
+        >
           Mendoza
         </p>
-        <h1 className="mt-2 text-2xl font-black tracking-tight">
+
+        <h1 style={{ marginTop: "8px", fontSize: "28px", fontWeight: 900 }}>
           Manager
         </h1>
-        <p className="mt-2 text-sm font-semibold text-slate-400">
+
+        <p style={{ marginTop: "8px", fontSize: "14px", fontWeight: 700, color: "#94a3b8" }}>
           Gestión comercial y operativa
         </p>
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto px-4 py-5">
+      <nav style={{ flex: 1, overflowY: "auto", padding: "20px 16px" }}>
         {menuItems.map((item) => {
           const active =
             item.href === "/"
@@ -54,11 +79,17 @@ export default function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
-              className={
-                active
-                  ? "flex items-center rounded-2xl bg-teal-500 px-4 py-3 text-sm font-black text-slate-950"
-                  : "flex items-center rounded-2xl px-4 py-3 text-sm font-bold text-slate-300 transition hover:bg-slate-800 hover:text-white"
-              }
+              style={{
+                display: "block",
+                marginBottom: "6px",
+                padding: "13px 16px",
+                borderRadius: "16px",
+                textDecoration: "none",
+                fontSize: "15px",
+                fontWeight: 900,
+                backgroundColor: active ? "#2dd4bf" : "transparent",
+                color: active ? "#020617" : "#cbd5e1",
+              }}
             >
               {item.label}
             </Link>
@@ -66,11 +97,22 @@ export default function Sidebar() {
         })}
       </nav>
 
-      <div className="border-t border-slate-800 p-4">
+      <div style={{ padding: "16px", borderTop: "1px solid #1e293b" }}>
         <button
           type="button"
           onClick={logout}
-          className="w-full rounded-2xl bg-red-500/10 px-4 py-3 text-left text-sm font-black text-red-300 transition hover:bg-red-500 hover:text-white"
+          style={{
+            width: "100%",
+            padding: "13px 16px",
+            borderRadius: "16px",
+            border: "none",
+            backgroundColor: "#7f1d1d",
+            color: "#ffffff",
+            fontSize: "15px",
+            fontWeight: 900,
+            textAlign: "left",
+            cursor: "pointer",
+          }}
         >
           Cerrar sesión
         </button>
