@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { AuthGuard } from "@/components/AuthGuard";
+import AuthGuard from "@/components/AuthGuard";
 
 export const metadata: Metadata = {
   title: "Mendoza Manager",
-  description: "Sistema de gestión Mendoza Manager",
+  description: "Sistema de gestión comercial y operativa",
 };
 
 export default function RootLayout({
