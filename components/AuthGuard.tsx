@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
@@ -14,7 +14,7 @@ const menuItems = [
   { href: "/facturacion", label: "Facturación" },
   { href: "/pagos", label: "Pagos" },
   { href: "/cuentas-cobro", label: "Cuentas de cobro" },
-  { href: "/ordenes", label: "Órdenes" },
+  { href: "/ordenes", label: "Órdenes de trabajo" },
   { href: "/calendario", label: "Calendario" },
   { href: "/tareas", label: "Tareas" },
   { href: "/documentos", label: "Documentos" },
@@ -24,198 +24,125 @@ const menuItems = [
 export default function AuthGuard({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const isLoginPage = pathname === "/login";
-
-  const [loading, setLoading] = useState(true);
-  const [authenticated, setAuthenticated] = useState(false);
-
-  useEffect(() => {
-    let mounted = true;
-
-    async function checkSession() {
-      const { data } = await supabase.auth.getSession();
-      const hasSession = Boolean(data.session);
-
-      if (!mounted) return;
-
-      setAuthenticated(hasSession);
-      setLoading(false);
-
-      if (!hasSession && !isLoginPage) {
-        router.replace("/login");
-      }
-
-      if (hasSession && isLoginPage) {
-        router.replace("/");
-      }
-    }
-
-    checkSession();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      const hasSession = Boolean(session);
-
-      setAuthenticated(hasSession);
-
-      if (!hasSession && !isLoginPage) {
-        router.replace("/login");
-      }
-
-      if (hasSession && isLoginPage) {
-        router.replace("/");
-      }
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, [isLoginPage, router]);
 
   async function logout() {
     await supabase.auth.signOut();
     router.replace("/login");
   }
 
-  if (loading) {
-    return (
-      <div
-        style={{
-          minHeight: "100vh",
-          backgroundColor: "#020617",
-          color: "white",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontWeight: 900,
-        }}
-      >
-        Cargando Mendoza Manager...
-      </div>
-    );
-  }
-
-  if (isLoginPage) {
+  if (pathname === "/login") {
     return <>{children}</>;
-  }
-
-  if (!authenticated) {
-    return null;
   }
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#f8fafc" }}>
-      <header
+      <aside
         style={{
           position: "fixed",
-          top: 0,
           left: 0,
-          right: 0,
-          zIndex: 999999,
+          top: 0,
+          bottom: 0,
+          width: "288px",
           backgroundColor: "#020617",
-          borderBottom: "1px solid #1e293b",
-          boxShadow: "0 8px 24px rgba(15, 23, 42, 0.22)",
+          color: "#ffffff",
+          zIndex: 999999,
+          display: "flex",
+          flexDirection: "column",
+          borderRight: "1px solid #1e293b",
+          boxShadow: "0 20px 40px rgba(15, 23, 42, 0.35)",
         }}
       >
-        <div
-          style={{
-            minHeight: "74px",
-            display: "flex",
-            alignItems: "center",
-            gap: "16px",
-            padding: "12px 22px",
-          }}
-        >
-          <div style={{ minWidth: "190px" }}>
-            <p
-              style={{
-                margin: 0,
-                fontSize: "11px",
-                fontWeight: 900,
-                letterSpacing: "0.28em",
-                color: "#5eead4",
-                textTransform: "uppercase",
-              }}
-            >
-              Mendoza
-            </p>
-
-            <h1
-              style={{
-                margin: "4px 0 0 0",
-                fontSize: "22px",
-                fontWeight: 900,
-                color: "#ffffff",
-              }}
-            >
-              Manager
-            </h1>
-          </div>
-
-          <nav
+        <div style={{ padding: "24px", borderBottom: "1px solid #1e293b" }}>
+          <p
             style={{
-              display: "flex",
-              gap: "8px",
-              overflowX: "auto",
-              flex: 1,
-              paddingBottom: "4px",
+              margin: 0,
+              fontSize: "12px",
+              fontWeight: 900,
+              letterSpacing: "0.35em",
+              textTransform: "uppercase",
+              color: "#5eead4",
             }}
           >
-            {menuItems.map((item) => {
-              const active =
-                item.href === "/"
-                  ? pathname === "/"
-                  : pathname.startsWith(item.href);
+            Mendoza
+          </p>
 
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  style={{
-                    whiteSpace: "nowrap",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    padding: "10px 14px",
-                    borderRadius: "999px",
-                    textDecoration: "none",
-                    fontSize: "14px",
-                    fontWeight: 900,
-                    backgroundColor: active ? "#2dd4bf" : "#0f172a",
-                    color: active ? "#020617" : "#cbd5e1",
-                    border: active ? "1px solid #2dd4bf" : "1px solid #1e293b",
-                  }}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
+          <h1
+            style={{
+              margin: "8px 0 0 0",
+              fontSize: "28px",
+              fontWeight: 900,
+              color: "#ffffff",
+            }}
+          >
+            Manager
+          </h1>
 
+          <p
+            style={{
+              margin: "8px 0 0 0",
+              fontSize: "14px",
+              fontWeight: 700,
+              color: "#94a3b8",
+            }}
+          >
+            Gestión comercial y operativa
+          </p>
+        </div>
+
+        <nav style={{ flex: 1, overflowY: "auto", padding: "18px 14px" }}>
+          {menuItems.map((item) => {
+            const active =
+              item.href === "/"
+                ? pathname === "/"
+                : pathname.startsWith(item.href);
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                style={{
+                  display: "block",
+                  marginBottom: "6px",
+                  padding: "13px 16px",
+                  borderRadius: "16px",
+                  textDecoration: "none",
+                  fontSize: "15px",
+                  fontWeight: 900,
+                  backgroundColor: active ? "#2dd4bf" : "transparent",
+                  color: active ? "#020617" : "#cbd5e1",
+                }}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div style={{ padding: "16px", borderTop: "1px solid #1e293b" }}>
           <button
             type="button"
             onClick={logout}
             style={{
-              minWidth: "120px",
-              padding: "11px 14px",
-              borderRadius: "999px",
-              border: "1px solid #7f1d1d",
+              width: "100%",
+              padding: "13px 16px",
+              borderRadius: "16px",
+              border: "none",
               backgroundColor: "#7f1d1d",
               color: "#ffffff",
-              fontSize: "14px",
+              fontSize: "15px",
               fontWeight: 900,
+              textAlign: "left",
               cursor: "pointer",
             }}
           >
-            Salir
+            Cerrar sesión
           </button>
         </div>
-      </header>
+      </aside>
 
-      <div style={{ paddingTop: "88px" }}>
+      <main style={{ minHeight: "100vh", marginLeft: "288px" }}>
         {children}
-      </div>
+      </main>
     </div>
   );
 }
