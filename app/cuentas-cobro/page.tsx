@@ -61,6 +61,56 @@ type CollectionAccountItem = {
   created_at: string | null;
 };
 
+type PaymentMethod = {
+  id: string;
+  name?: string | null;
+  method_name?: string | null;
+  label?: string | null;
+  destination?: string | null;
+  account_data?: string | null;
+  payment_data?: string | null;
+  display_order?: number | null;
+  sort_order?: number | null;
+  notes?: string | null;
+  observation?: string | null;
+  is_active?: boolean | null;
+  active?: boolean | null;
+};
+
+type BusinessSettings = {
+  id: string | null;
+  business_name: string;
+  provider_full_name: string;
+  document_type: string;
+  document_number: string;
+  main_whatsapp: string;
+  main_email: string;
+  signature_url: string;
+  signature_name: string;
+  signature_role: string;
+  signature_document: string;
+  payment_qr_url: string;
+  payment_qr_title: string;
+  payment_qr_note: string;
+};
+
+const defaultBusinessSettings: BusinessSettings = {
+  id: null,
+  business_name: "Mendoza Creaciones",
+  provider_full_name: "",
+  document_type: "C.C.",
+  document_number: "",
+  main_whatsapp: "313 618 8107",
+  main_email: "invitaadmon@gmail.com",
+  signature_url: "",
+  signature_name: "",
+  signature_role: "Prestador del servicio",
+  signature_document: "",
+  payment_qr_url: "",
+  payment_qr_title: "QR de pago",
+  payment_qr_note: "Escanea el código QR para realizar tu pago.",
+};
+
 function money(value: number | null | undefined) {
   return new Intl.NumberFormat("es-CO", {
     style: "currency",
@@ -113,11 +163,47 @@ function nextAccountNumber(accounts: CollectionAccount[]) {
   return "CC-" + String(last + 1).padStart(4, "0");
 }
 
+function pick(row: Record<string, any> | null | undefined, keys: string[], fallback = "") {
+  if (!row) return fallback;
+
+  for (const key of keys) {
+    const value = row[key];
+
+    if (value !== undefined && value !== null && String(value) !== "") {
+      return String(value);
+    }
+  }
+
+  return fallback;
+}
+
+function paymentName(method: PaymentMethod) {
+  return String(method.name ?? method.method_name ?? "Medio de pago");
+}
+
+function paymentLabel(method: PaymentMethod) {
+  return String(method.label ?? "Dato");
+}
+
+function paymentDestination(method: PaymentMethod) {
+  return String(method.destination ?? method.account_data ?? method.payment_data ?? "");
+}
+
+function paymentOrder(method: PaymentMethod) {
+  return Number(method.display_order ?? method.sort_order ?? 0);
+}
+
+function paymentActive(method: PaymentMethod) {
+  return Boolean(method.is_active ?? method.active ?? true);
+}
+
 export default function CuentasCobroPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [accounts, setAccounts] = useState<CollectionAccount[]>([]);
   const [items, setItems] = useState<CollectionAccountItem[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [businessSettings, setBusinessSettings] = useState<BusinessSettings>(defaultBusinessSettings);
 
   const [clientId, setClientId] = useState("");
   const [periodType, setPeriodType] = useState("mensual");
@@ -136,17 +222,44 @@ export default function CuentasCobroPage() {
     setLoading(true);
     setMessage("");
 
-    const [clientsRes, salesRes, accountsRes, itemsRes] = await Promise.all([
+    const [clientsRes, salesRes, accountsRes, itemsRes, settingsRes, methodsRes] = await Promise.all([
       supabase.from("clients").select("id, full_name, phone, email, document_number").order("full_name"),
       supabase.from("sales").select("*").order("created_at", { ascending: false }),
       supabase.from("collection_accounts").select("*").order("created_at", { ascending: false }),
       supabase.from("collection_account_items").select("*").order("created_at", { ascending: true }),
+      supabase.from("business_settings").select("*").limit(1).maybeSingle(),
+      supabase.from("payment_methods").select("*"),
     ]);
 
     if (!clientsRes.error) setClients((clientsRes.data ?? []) as Client[]);
     if (!salesRes.error) setSales((salesRes.data ?? []) as Sale[]);
     if (!accountsRes.error) setAccounts((accountsRes.data ?? []) as CollectionAccount[]);
     if (!itemsRes.error) setItems((itemsRes.data ?? []) as CollectionAccountItem[]);
+
+    if (!settingsRes.error && settingsRes.data) {
+      const row = settingsRes.data as Record<string, any>;
+
+      setBusinessSettings({
+        id: String(row.id ?? "") || null,
+        business_name: pick(row, ["business_name", "commercial_name", "brand_name"], defaultBusinessSettings.business_name),
+        provider_full_name: pick(row, ["provider_full_name", "provider_name", "full_name", "owner_name"], ""),
+        document_type: pick(row, ["document_type", "id_type"], defaultBusinessSettings.document_type),
+        document_number: pick(row, ["document_number", "id_number", "provider_document"], ""),
+        main_whatsapp: pick(row, ["main_whatsapp", "whatsapp", "phone_whatsapp"], defaultBusinessSettings.main_whatsapp),
+        main_email: pick(row, ["main_email", "email", "contact_email"], defaultBusinessSettings.main_email),
+        signature_url: pick(row, ["signature_url"], ""),
+        signature_name: pick(row, ["signature_name"], pick(row, ["provider_full_name", "provider_name", "full_name", "owner_name"], "")),
+        signature_role: pick(row, ["signature_role"], defaultBusinessSettings.signature_role),
+        signature_document: pick(row, ["signature_document"], pick(row, ["document_number", "id_number", "provider_document"], "")),
+        payment_qr_url: pick(row, ["payment_qr_url", "qr_payment_url", "qr_url"], ""),
+        payment_qr_title: pick(row, ["payment_qr_title", "qr_payment_title", "qr_title"], defaultBusinessSettings.payment_qr_title),
+        payment_qr_note: pick(row, ["payment_qr_note", "qr_payment_note", "qr_note"], defaultBusinessSettings.payment_qr_note),
+      });
+    }
+
+    if (!methodsRes.error) {
+      setPaymentMethods(((methodsRes.data ?? []) as PaymentMethod[]).sort((a, b) => paymentOrder(a) - paymentOrder(b)));
+    }
 
     const errors = [clientsRes.error, salesRes.error, accountsRes.error, itemsRes.error].filter(Boolean);
 
@@ -235,6 +348,39 @@ export default function CuentasCobroPage() {
     setDiscount("0");
     setNotes("Cuenta de cobro generada por servicios pendientes de pago.");
     setSelectedSaleIds([]);
+  }
+
+  async function saveSignatureSettings(event: FormEvent) {
+    event.preventDefault();
+
+    setLoading(true);
+    setMessage("");
+
+    const payload = {
+      signature_url: businessSettings.signature_url.trim() || null,
+      signature_name: businessSettings.signature_name.trim() || null,
+      signature_role: businessSettings.signature_role.trim() || "Prestador del servicio",
+      signature_document: businessSettings.signature_document.trim() || null,
+      updated_at: new Date().toISOString(),
+    };
+
+    const result = businessSettings.id
+      ? await supabase.from("business_settings").update(payload).eq("id", businessSettings.id)
+      : await supabase.from("business_settings").insert({
+          business_name: businessSettings.business_name || "Mendoza Creaciones",
+          main_whatsapp: businessSettings.main_whatsapp || "313 618 8107",
+          main_email: businessSettings.main_email || "invitaadmon@gmail.com",
+          ...payload,
+        });
+
+    if (result.error) {
+      setMessage("No se pudo guardar la firma: " + result.error.message);
+    } else {
+      setMessage("Firma guardada correctamente.");
+      await loadData();
+    }
+
+    setLoading(false);
   }
 
   async function createAccount(event: FormEvent) {
@@ -409,7 +555,12 @@ export default function CuentasCobroPage() {
     const client = clientData(account.client_id);
     const lines = accountItems(account.id)
       .map((item) => "• " + item.description + ": " + money(item.total))
-      .join("\\n");
+      .join("\n");
+
+    const activePaymentMethods = paymentMethods.filter(paymentActive);
+    const methods = activePaymentMethods.length
+      ? activePaymentMethods.map((method) => `${paymentName(method)}: ${paymentDestination(method)}`).join("\n")
+      : "NEQUI: 3209876635\nLLAVE: 1063175897\nPAYPAL: victordoria96@hotmail.com";
 
     return [
       "Hola " + (client?.full_name ?? "cliente") + ", te comparto la cuenta de cobro " + account.account_number + ".",
@@ -420,8 +571,11 @@ export default function CuentasCobroPage() {
       "Saldo: " + money(account.balance),
       "Vence: " + dateText(account.due_date),
       "",
-      "Mendoza Manager",
-    ].join("\\n");
+      "Medios de pago:",
+      methods,
+      "",
+      businessSettings.business_name || "Mendoza Creaciones",
+    ].join("\n");
   }
 
   function whatsappLink(account: CollectionAccount) {
@@ -434,44 +588,211 @@ export default function CuentasCobroPage() {
   function printAccount(account: CollectionAccount) {
     const client = clientData(account.client_id);
     const rows = accountItems(account.id);
+    const activePaymentMethods = paymentMethods.filter(paymentActive).sort((a, b) => paymentOrder(a) - paymentOrder(b));
+
+    const paymentMethodsHtml = activePaymentMethods.length
+      ? activePaymentMethods
+          .map((method) => {
+            const destination = paymentDestination(method);
+            if (!destination) return "";
+            return `<p><b>${paymentName(method)}:</b> ${paymentLabel(method)} ${destination}</p>`;
+          })
+          .filter(Boolean)
+          .join("")
+      : `
+        <p><b>NEQUI:</b> 3209876635</p>
+        <p><b>LLAVE:</b> 1063175897</p>
+        <p><b>PAYPAL:</b> victordoria96@hotmail.com</p>
+      `;
+
+    const signatureName =
+      businessSettings.signature_name ||
+      businessSettings.provider_full_name ||
+      "Firma autorizada";
+
+    const signatureDocument =
+      businessSettings.signature_document ||
+      businessSettings.document_number ||
+      "";
+
+    const signatureRole =
+      businessSettings.signature_role ||
+      "Prestador del servicio";
+
+    const signatureHtml = `
+      <div class="signature">
+        ${
+          businessSettings.signature_url
+            ? `<img src="${businessSettings.signature_url}" alt="Firma" class="signature-img" />`
+            : ""
+        }
+        <div class="signature-line"></div>
+        <p class="signature-name">${signatureName}</p>
+        <p>${signatureRole}</p>
+        ${
+          signatureDocument
+            ? `<p>${businessSettings.document_type || "Documento"} ${signatureDocument}</p>`
+            : ""
+        }
+      </div>
+    `;
+
+    const qrHtml = businessSettings.payment_qr_url
+      ? `
+        <div class="qr-box">
+          <p><b>${businessSettings.payment_qr_title || "QR de pago"}</b></p>
+          <img src="${businessSettings.payment_qr_url}" alt="QR de pago" />
+          <p>${businessSettings.payment_qr_note || "Escanea el QR para realizar tu pago."}</p>
+        </div>
+      `
+      : "<div></div>";
 
     const html = `
+      <!doctype html>
       <html>
         <head>
+          <meta charset="utf-8" />
           <title>${account.account_number}</title>
           <style>
-            body { font-family: Arial, sans-serif; padding: 32px; color: #0B1F33; }
-            .header { display: flex; justify-content: space-between; border-bottom: 2px solid #0B1F33; padding-bottom: 16px; margin-bottom: 24px; }
-            h1, h2, p { margin: 0 0 8px; }
+            * { box-sizing: border-box; }
+            body {
+              font-family: Arial, sans-serif;
+              padding: 32px;
+              color: #0B1F33;
+              background: #FFFFFF;
+            }
+            .header {
+              display: flex;
+              justify-content: space-between;
+              gap: 24px;
+              border-bottom: 2px solid #0B1F33;
+              padding-bottom: 16px;
+              margin-bottom: 24px;
+            }
+            h1, h2, h3, p { margin-top: 0; }
             .muted { color: #5D7485; }
-            table { width: 100%; border-collapse: collapse; margin-top: 24px; }
-            th, td { padding: 12px; border-bottom: 1px solid #D8E8E5; text-align: left; }
+            .info-grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 12px;
+              margin: 18px 0;
+            }
+            .info-box {
+              border: 1px solid #D8E8E5;
+              border-radius: 14px;
+              padding: 12px;
+              background: #F8FFFD;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 24px;
+            }
+            th, td {
+              padding: 12px;
+              border-bottom: 1px solid #D8E8E5;
+              text-align: left;
+              vertical-align: top;
+            }
             th { background: #EAF8F5; }
-            .total { margin-top: 24px; text-align: right; font-size: 20px; }
-            .box { margin-top: 24px; padding: 16px; background: #F4FBFA; border: 1px solid #D8E8E5; border-radius: 16px; }
+            .total {
+              margin-top: 24px;
+              text-align: right;
+              font-size: 18px;
+            }
+            .box {
+              margin-top: 24px;
+              padding: 16px;
+              background: #F4FBFA;
+              border: 1px solid #D8E8E5;
+              border-radius: 16px;
+            }
+            .footer-grid {
+              display: grid;
+              grid-template-columns: 1fr 220px;
+              gap: 24px;
+              align-items: end;
+              margin-top: 36px;
+            }
+            .signature {
+              text-align: center;
+              min-height: 130px;
+            }
+            .signature-img {
+              max-width: 210px;
+              max-height: 80px;
+              object-fit: contain;
+              display: block;
+              margin: 0 auto 4px;
+            }
+            .signature-line {
+              border-top: 1.5px solid #0B1F33;
+              margin: 70px auto 8px;
+              width: 240px;
+            }
+            .signature-img + .signature-line {
+              margin-top: 6px;
+            }
+            .signature-name {
+              font-weight: 800;
+              margin: 0;
+            }
+            .signature p {
+              margin: 2px 0;
+              font-size: 13px;
+            }
+            .qr-box {
+              text-align: center;
+              border: 1px solid #D8E8E5;
+              background: #F8FFFD;
+              border-radius: 16px;
+              padding: 12px;
+            }
+            .qr-box img {
+              width: 145px;
+              height: 145px;
+              object-fit: contain;
+            }
+            @media print {
+              body { padding: 18mm; }
+            }
           </style>
         </head>
         <body>
           <div class="header">
             <div>
-              <h1>Mendoza Manager</h1>
-              <p class="muted">Cuenta de cobro</p>
+              <h1>${businessSettings.business_name || "Mendoza Creaciones"}</h1>
+              <p class="muted">
+                WhatsApp: ${businessSettings.main_whatsapp || "313 618 8107"} ·
+                ${businessSettings.main_email || "invitaadmon@gmail.com"}
+              </p>
             </div>
-            <div>
-              <h2>${account.account_number}</h2>
+            <div style="text-align:right">
+              <h2>Cuenta de cobro</h2>
+              <h3>${account.account_number}</h3>
               <p class="muted">Vence: ${dateText(account.due_date)}</p>
             </div>
           </div>
 
-          <p><b>Cliente:</b> ${client?.full_name ?? "Sin cliente"}</p>
-          <p><b>Documento:</b> ${client?.document_number ?? "—"}</p>
-          <p><b>Periodo:</b> ${dateText(account.period_start)} al ${dateText(account.period_end)}</p>
+          <div class="info-grid">
+            <div class="info-box">
+              <p><b>Cliente:</b> ${client?.full_name ?? "Sin cliente"}</p>
+              <p><b>Documento:</b> ${client?.document_number ?? "—"}</p>
+              <p><b>Estado:</b> ${String(account.status ?? "generada").replaceAll("_", " ")}</p>
+            </div>
+            <div class="info-box">
+              <p><b>Periodo:</b> ${dateText(account.period_start)} al ${dateText(account.period_end)}</p>
+              <p><b>Fecha generación:</b> ${dateText(account.created_at)}</p>
+              <p><b>Fecha de pago sugerida:</b> ${dateText(account.due_date)}</p>
+            </div>
+          </div>
 
           <table>
             <thead>
               <tr>
                 <th>Servicio / venta</th>
                 <th>Fecha</th>
+                <th>Cantidad</th>
                 <th>Total</th>
               </tr>
             </thead>
@@ -480,6 +801,7 @@ export default function CuentasCobroPage() {
                 <tr>
                   <td>${item.description}</td>
                   <td>${dateText(item.service_date)}</td>
+                  <td>${Number(item.quantity ?? 1)}</td>
                   <td>${money(item.total)}</td>
                 </tr>
               `).join("")}
@@ -497,16 +819,61 @@ export default function CuentasCobroPage() {
             <b>Notas</b>
             <p>${account.notes ?? "Sin observaciones."}</p>
           </div>
+
+          <div class="box">
+            <b>Medios de pago</b>
+            ${paymentMethodsHtml}
+          </div>
+
+          <div class="footer-grid">
+            ${signatureHtml}
+            ${qrHtml}
+          </div>
         </body>
       </html>
     `;
 
-    const win = window.open("", "_blank", "width=900,height=700");
-    if (!win) return;
-    win.document.write(html);
-    win.document.close();
-    win.focus();
-    win.print();
+    const frame = document.createElement("iframe");
+    frame.style.position = "fixed";
+    frame.style.right = "0";
+    frame.style.bottom = "0";
+    frame.style.width = "0";
+    frame.style.height = "0";
+    frame.style.border = "0";
+    document.body.appendChild(frame);
+
+    const frameWindow = frame.contentWindow;
+    const frameDoc = frame.contentDocument || frameWindow?.document;
+
+    if (!frameWindow || !frameDoc) {
+      const win = window.open("", "_blank", "width=900,height=700");
+
+      if (!win) {
+        setMessage("El navegador bloqueó la ventana de impresión. Revisa permisos de ventanas emergentes.");
+        return;
+      }
+
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      setTimeout(() => win.print(), 700);
+      return;
+    }
+
+    frameDoc.open();
+    frameDoc.write(html);
+    frameDoc.close();
+
+    setTimeout(() => {
+      frameWindow.focus();
+      frameWindow.print();
+
+      setTimeout(() => {
+        if (document.body.contains(frame)) {
+          document.body.removeChild(frame);
+        }
+      }, 1000);
+    }, 850);
   }
 
   return (
@@ -523,7 +890,7 @@ export default function CuentasCobroPage() {
               Cuentas de cobro
             </h1>
             <p style={{ margin: 0, color: "#5D7485", fontWeight: 700 }}>
-              Generar cortes de cobro, imprimir, enviar y eliminar cuentas creadas por error.
+              Generar cortes de cobro, imprimir con firma, enviar y eliminar cuentas creadas por error.
             </p>
           </div>
 
@@ -668,6 +1035,90 @@ export default function CuentasCobroPage() {
           </div>
         </form>
 
+        <form onSubmit={saveSignatureSettings} style={cardStyle}>
+          <h2 style={{ marginTop: 0, fontSize: 24, fontWeight: 900 }}>
+            Firma para cuentas de cobro
+          </h2>
+
+          <p style={{ color: "#5D7485", fontWeight: 700, marginTop: 0 }}>
+            Pega una URL pública de tu firma. Si no agregas imagen, el documento saldrá con línea de firma y tus datos.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr", gap: 16 }}>
+            <label style={labelStyle}>
+              URL de imagen de firma
+              <input
+                value={businessSettings.signature_url}
+                onChange={(e) => setBusinessSettings({ ...businessSettings, signature_url: e.target.value })}
+                placeholder="https://..."
+                style={inputStyle}
+              />
+            </label>
+
+            <label style={labelStyle}>
+              Nombre firma
+              <input
+                value={businessSettings.signature_name}
+                onChange={(e) => setBusinessSettings({ ...businessSettings, signature_name: e.target.value })}
+                placeholder="Nombre completo"
+                style={inputStyle}
+              />
+            </label>
+
+            <label style={labelStyle}>
+              Rol / cargo
+              <input
+                value={businessSettings.signature_role}
+                onChange={(e) => setBusinessSettings({ ...businessSettings, signature_role: e.target.value })}
+                placeholder="Prestador del servicio"
+                style={inputStyle}
+              />
+            </label>
+
+            <label style={labelStyle}>
+              Documento
+              <input
+                value={businessSettings.signature_document}
+                onChange={(e) => setBusinessSettings({ ...businessSettings, signature_document: e.target.value })}
+                placeholder="Cédula o NIT"
+                style={inputStyle}
+              />
+            </label>
+          </div>
+
+          <div style={{
+            marginTop: 18,
+            background: "#F8FFFD",
+            border: "1px solid #D8E8E5",
+            borderRadius: 20,
+            padding: 18,
+            textAlign: "center",
+          }}>
+            {businessSettings.signature_url ? (
+              <img
+                src={businessSettings.signature_url}
+                alt="Firma"
+                style={{ maxWidth: 240, maxHeight: 90, objectFit: "contain", display: "block", margin: "0 auto 8px" }}
+              />
+            ) : (
+              <div style={{ borderBottom: "1.5px solid #0B1F33", width: 240, height: 55, margin: "0 auto 8px" }} />
+            )}
+
+            <strong style={{ display: "block", color: "#0B1F33" }}>
+              {businessSettings.signature_name || businessSettings.provider_full_name || "Nombre de firma"}
+            </strong>
+            <span style={{ color: "#5D7485", fontWeight: 700 }}>
+              {businessSettings.signature_role || "Prestador del servicio"}
+            </span>
+          </div>
+
+          <div style={{ marginTop: 18 }}>
+            <button disabled={loading} style={softButtonStyle}>
+              Guardar firma
+            </button>
+          </div>
+        </form>
+
         <div style={cardStyle}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center", marginBottom: 18 }}>
             <h2 style={{ margin: 0, fontSize: 24, fontWeight: 900 }}>
@@ -711,7 +1162,7 @@ export default function CuentasCobroPage() {
 
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 16 }}>
                   <button type="button" onClick={() => printAccount(account)} style={softButtonStyle}>
-                    Imprimir
+                    PDF / imprimir
                   </button>
 
                   <a href={whatsappLink(account)} target="_blank" style={{ ...softButtonStyle, textDecoration: "none" }}>
