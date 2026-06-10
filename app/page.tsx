@@ -213,12 +213,12 @@ export default function DashboardPage() {
     ]);
 
     if (!prospectsRes.error) setProspects((prospectsRes.data ?? []) as Prospect[]);
-    if (!quotesRes.error) setQuotes((quotesRes.data ?? []) as Quote[]);
-    if (!ordersRes.error) setOrders((ordersRes.data ?? []) as WorkOrder[]);
+    if (!quotesRes.error) setQuotes((quotesRes.data ?? []) as unknown as Quote[]);
+    if (!ordersRes.error) setOrders((ordersRes.data ?? []) as unknown as WorkOrder[]);
     if (!paymentsRes.error) setPayments((paymentsRes.data ?? []) as Payment[]);
     if (!salesRes.error) setSales((salesRes.data ?? []) as Sale[]);
     if (!collectionAccountsRes.error) setCollectionAccounts((collectionAccountsRes.data ?? []) as CollectionAccount[]);
-    if (!tasksRes.error) setTasks((tasksRes.data ?? []) as Task[]);
+    if (!tasksRes.error) setTasks((tasksRes.data ?? []) as unknown as Task[]);
 
     const errors = [
       prospectsRes.error,
