@@ -654,107 +654,225 @@ export default function CuentasCobroPage() {
           <meta charset="utf-8" />
           <title>${account.account_number}</title>
           <style>
-            * { box-sizing: border-box; }
-            body {
-              font-family: Arial, sans-serif;
-              padding: 32px;
-              color: #0B1F33;
-              background: #FFFFFF;
+            @page {
+              size: letter;
+              margin: 8mm;
             }
+
+            * {
+              box-sizing: border-box;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+
+            html,
+            body {
+              width: 100%;
+              margin: 0;
+              padding: 0;
+              background: #FFFFFF;
+              color: #0B1F33;
+              font-family: Arial, sans-serif;
+              font-size: 10px;
+              line-height: 1.18;
+            }
+
+            body {
+              padding: 0;
+            }
+
             .header {
               display: flex;
               justify-content: space-between;
-              gap: 24px;
-              border-bottom: 2px solid #0B1F33;
-              padding-bottom: 16px;
-              margin-bottom: 24px;
+              gap: 12px;
+              border-bottom: 1.5px solid #0B1F33;
+              padding-bottom: 7px;
+              margin-bottom: 8px;
             }
-            h1, h2, h3, p { margin-top: 0; }
-            .muted { color: #5D7485; }
+
+            h1,
+            h2,
+            h3,
+            p {
+              margin: 0 0 3px;
+            }
+
+            h1 {
+              font-size: 18px;
+              line-height: 1.05;
+            }
+
+            h2 {
+              font-size: 15px;
+              line-height: 1.05;
+            }
+
+            h3 {
+              font-size: 12px;
+              line-height: 1.05;
+            }
+
+            .muted {
+              color: #5D7485;
+              font-size: 9px;
+            }
+
             .info-grid {
               display: grid;
               grid-template-columns: 1fr 1fr;
-              gap: 12px;
-              margin: 18px 0;
+              gap: 6px;
+              margin: 7px 0;
             }
+
             .info-box {
               border: 1px solid #D8E8E5;
-              border-radius: 14px;
-              padding: 12px;
+              border-radius: 8px;
+              padding: 6px 7px;
               background: #F8FFFD;
+              min-height: 0;
             }
+
             table {
               width: 100%;
               border-collapse: collapse;
-              margin-top: 24px;
+              margin-top: 8px;
+              font-size: 9.5px;
             }
-            th, td {
-              padding: 12px;
+
+            th,
+            td {
+              padding: 4px 5px;
               border-bottom: 1px solid #D8E8E5;
               text-align: left;
               vertical-align: top;
             }
-            th { background: #EAF8F5; }
-            .total {
-              margin-top: 24px;
-              text-align: right;
-              font-size: 18px;
+
+            th {
+              background: #EAF8F5;
+              font-size: 9px;
             }
+
+            td:nth-child(2),
+            th:nth-child(2) {
+              width: 80px;
+            }
+
+            td:nth-child(3),
+            th:nth-child(3) {
+              width: 55px;
+              text-align: center;
+            }
+
+            td:nth-child(4),
+            th:nth-child(4) {
+              width: 95px;
+              text-align: right;
+            }
+
+            .total {
+              margin-top: 7px;
+              text-align: right;
+              font-size: 10.5px;
+              line-height: 1.12;
+            }
+
+            .total p {
+              margin-bottom: 2px;
+            }
+
             .box {
-              margin-top: 24px;
-              padding: 16px;
+              margin-top: 7px;
+              padding: 7px 8px;
               background: #F4FBFA;
               border: 1px solid #D8E8E5;
-              border-radius: 16px;
+              border-radius: 9px;
+              page-break-inside: avoid;
             }
+
+            .box p {
+              margin-bottom: 2px;
+            }
+
             .footer-grid {
               display: grid;
-              grid-template-columns: 1fr 220px;
-              gap: 24px;
+              grid-template-columns: 1fr 125px;
+              gap: 12px;
               align-items: end;
-              margin-top: 36px;
+              margin-top: 10px;
+              page-break-inside: avoid;
             }
+
             .signature {
               text-align: center;
-              min-height: 130px;
+              min-height: 72px;
+              page-break-inside: avoid;
             }
+
             .signature-img {
-              max-width: 210px;
-              max-height: 80px;
+              max-width: 165px;
+              max-height: 45px;
               object-fit: contain;
               display: block;
-              margin: 0 auto 4px;
+              margin: 0 auto 2px;
             }
+
             .signature-line {
-              border-top: 1.5px solid #0B1F33;
-              margin: 70px auto 8px;
-              width: 240px;
+              border-top: 1px solid #0B1F33;
+              margin: 38px auto 4px;
+              width: 180px;
             }
+
             .signature-img + .signature-line {
-              margin-top: 6px;
+              margin-top: 3px;
             }
+
             .signature-name {
               font-weight: 800;
               margin: 0;
             }
+
             .signature p {
-              margin: 2px 0;
-              font-size: 13px;
+              margin: 1px 0;
+              font-size: 9px;
             }
+
             .qr-box {
               text-align: center;
               border: 1px solid #D8E8E5;
               background: #F8FFFD;
-              border-radius: 16px;
-              padding: 12px;
+              border-radius: 9px;
+              padding: 6px;
+              font-size: 8px;
+              page-break-inside: avoid;
             }
+
             .qr-box img {
-              width: 145px;
-              height: 145px;
+              width: 82px;
+              height: 82px;
               object-fit: contain;
+              display: block;
+              margin: 2px auto;
             }
+
             @media print {
-              body { padding: 18mm; }
+              html,
+              body {
+                width: 100%;
+                height: auto;
+              }
+
+              body {
+                zoom: 0.92;
+              }
+
+              .header,
+              .info-grid,
+              table,
+              .total,
+              .box,
+              .footer-grid {
+                page-break-inside: avoid;
+              }
             }
           </style>
         </head>
