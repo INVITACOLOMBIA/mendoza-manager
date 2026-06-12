@@ -100,13 +100,13 @@ function toInteger(value: string) {
 }
 
 
-function getInternalCodePrefix(itemType: ItemType) {
+function getInternalCodePrefix(itemType: string | null | undefined) {
   if (itemType === "fisico") return "PF";
   if (itemType === "digital") return "PD";
   return "SV";
 }
 
-function getNextInternalCode(itemType: ItemType, items: CatalogItem[] = [], editingId?: string | null) {
+function getNextInternalCode(itemType: string | null | undefined, items: Array<{ id?: string | null; internal_code?: string | null }> = [], editingId?: string | null) {
   const prefix = getInternalCodePrefix(itemType);
   const usedNumbers = items
     .filter((item) => item.id !== editingId)
@@ -405,11 +405,11 @@ export default function CatalogoPage() {
               />
                   <button
                     type="button"
-                    onClick={fillInternalCode}
+                    onClick={() => setForm((current) => ({ ...current, internal_code: getNextInternalCode(current.item_type, items, editingId) }))}
                     className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#1AB7A6] bg-[#EAF8F5] px-4 py-3 text-sm font-black text-[#0B1F33] transition hover:bg-[#DDF4F2]"
                     title="Generar código interno"
                   >
-                    <Sparkles size={16} />
+                    
                     <span className="hidden sm:inline">Generar</span>
                   </button>
                 </div>
