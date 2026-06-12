@@ -99,6 +99,27 @@ function toInteger(value: string) {
   return Number.isNaN(parsed) ? null : Math.trunc(parsed);
 }
 
+
+function getInternalCodePrefix(itemType: ItemType) {
+  if (itemType === "fisico") return "PF";
+  if (itemType === "digital") return "PD";
+  return "SV";
+}
+
+function getNextInternalCode(itemType: ItemType, items: CatalogItem[] = [], editingId?: string | null) {
+  const prefix = getInternalCodePrefix(itemType);
+  const usedNumbers = items
+    .filter((item) => item.id !== editingId)
+    .map((item) => String(item.internal_code ?? "").trim().toUpperCase())
+    .map((code) => {
+      const match = code.match(new RegExp(`^${prefix}-(\\d{4})$`));
+      return match ? Number(match[1]) : 0;
+    });
+
+  const nextNumber = Math.max(0, ...usedNumbers) + 1;
+  return `${prefix}-${String(nextNumber).padStart(4, "0")}`;
+}
+
 export default function CatalogoPage() {
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -226,8 +247,10 @@ export default function CatalogoPage() {
 
     setSaving(true);
 
+    const internalCode = form.internal_code.trim() || getNextInternalCode(form.item_type, items, editingId);
+
     const payload = {
-      internal_code: form.internal_code.trim(),
+      internal_code: internalCode,
       barcode: cleanText(form.barcode),
       name: form.name.trim(),
       item_type: form.item_type,
@@ -370,15 +393,26 @@ export default function CatalogoPage() {
 
           <form onSubmit={saveItem} className="grid gap-4 md:grid-cols-4">
             <label className="space-y-2">
-              <span className="text-sm font-black text-slate-700">Código interno *</span>
-              <input
+              <span className="text-sm font-black text-slate-700">Código interno</span>
+              <div className="flex gap-2">
+                  <input
                 value={form.internal_code}
                 onChange={(event) =>
                   setForm({ ...form, internal_code: event.target.value })
                 }
-                placeholder="SV-WEB-001"
+                placeholder="Automático si lo dejas vacío"
                 className="w-full rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-teal-500"
               />
+                  <button
+                    type="button"
+                    onClick={fillInternalCode}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#1AB7A6] bg-[#EAF8F5] px-4 py-3 text-sm font-black text-[#0B1F33] transition hover:bg-[#DDF4F2]"
+                    title="Generar código interno"
+                  >
+                    <Sparkles size={16} />
+                    <span className="hidden sm:inline">Generar</span>
+                  </button>
+                </div>
             </label>
 
             <label className="space-y-2">
