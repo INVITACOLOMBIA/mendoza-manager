@@ -99,77 +99,6 @@ function toInteger(value: string) {
   return Number.isNaN(parsed) ? null : Math.trunc(parsed);
 }
 
-
-function getInternalCodePrefix(itemType: string | null | undefined) {
-  if (itemType === "fisico") return "PF";
-  if (itemType === "digital") return "PD";
-  return "SV";
-}
-
-function getNextInternalCode(itemType: string | null | undefined, items: Array<{ id?: string | null; internal_code?: string | null }> = [], editingId?: string | null) {
-  const prefix = getInternalCodePrefix(itemType);
-  const usedNumbers = items
-    .filter((item) => item.id !== editingId)
-    .map((item) => String(item.internal_code ?? "").trim().toUpperCase())
-    .map((code) => {
-      const match = code.match(new RegExp(`^${prefix}-(\\d{4})$`));
-      return match ? Number(match[1]) : 0;
-    });
-
-  const nextNumber = Math.max(0, ...usedNumbers) + 1;
-  return `${prefix}-${String(nextNumber).padStart(4, "0")}`;
-}
-
-
-function mmCatalogPrefix(itemType: string | null | undefined) {
-  const value = String(itemType ?? "").toLowerCase();
-
-  if (value.includes("digital")) return "PD";
-  if (value.includes("fisico") || value.includes("físico") || value.includes("producto")) return "PF";
-  if (value.includes("programa")) return "PG";
-  if (value.includes("paquete")) return "PQ";
-
-  return "SV";
-}
-
-function mmCatalogSlug(name: string | null | undefined) {
-  const cleaned = String(name ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toUpperCase()
-    .replace(/Ñ/g, "N")
-    .replace(/[^A-Z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 28);
-
-  return cleaned || "ITEM";
-}
-
-function mmCatalogCode(
-  itemType: string | null | undefined,
-  name: string | null | undefined,
-  items: Array<{ id?: string | null; internal_code?: string | null }> = [],
-  editingId?: string | null
-) {
-  const prefix = mmCatalogPrefix(itemType);
-  const namePart = mmCatalogSlug(name);
-  const used = new Set(
-    items
-      .filter((item) => item.id !== editingId)
-      .map((item) => String(item.internal_code ?? "").trim().toUpperCase())
-  );
-
-  for (let i = 0; i < 50; i += 1) {
-    const candidate = `${prefix}-${namePart}-${Math.floor(10000 + Math.random() * 90000)}`;
-
-    if (!used.has(candidate)) {
-      return candidate;
-    }
-  }
-
-  return `${prefix}-${namePart}-${Date.now().toString().slice(-5)}`;
-}
-
 export default function CatalogoPage() {
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -297,10 +226,8 @@ export default function CatalogoPage() {
 
     setSaving(true);
 
-    const internalCode = form.internal_code.trim() || mmCatalogCode(form.item_type, form.name, items, editingId);
-
     const payload = {
-      internal_code: internalCode,
+      internal_code: form.internal_code.trim(),
       barcode: cleanText(form.barcode),
       name: form.name.trim(),
       item_type: form.item_type,
@@ -407,19 +334,51 @@ export default function CatalogoPage() {
 
           <button
             type="button"
-            onClick={() => {
-                      setForm((current) => ({
-                        ...current,
-                        internal_code: mmCatalogCode(current.item_type, current.name, items, editingId),
-                      }));
-                    }}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#1AB7A6] bg-[#EAF8F5] px-4 py-3 text-sm font-black text-[#0B1F33] transition hover:bg-[#DDF4F2]"
-                    title="Generar código interno"
-                  >
-                    
-                    <span className="hidden sm:inline">Generar</span>
-                  </button>
-                </div>
+            onClick={loadData}
+            className="rounded-2xl border border-teal-200 bg-teal-50 px-6 py-4 font-black text-slate-900 transition hover:bg-teal-100"
+          >
+            Actualizar
+          </button>
+        </header>
+
+        <section className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <p className="text-sm font-bold text-slate-500">Total registros</p>
+            <p className="mt-2 text-3xl font-black">{items.length}</p>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <p className="text-sm font-bold text-slate-500">Activos</p>
+            <p className="mt-2 text-3xl font-black text-emerald-700">{totalActivos}</p>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <p className="text-sm font-bold text-slate-500">Inactivos</p>
+            <p className="mt-2 text-3xl font-black text-slate-500">{totalInactivos}</p>
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="mb-6 flex flex-col gap-2">
+            <h2 className="text-2xl font-black">
+              {editingId ? "Editar registro" : "Nuevo registro"}
+            </h2>
+            <p className="font-semibold text-slate-500">
+              Registra productos, servicios digitales, programas o paquetes.
+            </p>
+          </div>
+
+          <form onSubmit={saveItem} className="grid gap-4 md:grid-cols-4">
+            <label className="space-y-2">
+              <span className="text-sm font-black text-slate-700">Código interno *</span>
+              <input
+                value={form.internal_code}
+                onChange={(event) =>
+                  setForm({ ...form, internal_code: event.target.value })
+                }
+                placeholder="SV-WEB-001"
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-teal-500"
+              />
             </label>
 
             <label className="space-y-2">
