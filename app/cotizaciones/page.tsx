@@ -161,6 +161,10 @@ function paymentOrder(method: PaymentMethod) {
   return Number(method.display_order ?? method.sort_order ?? 10);
 }
 
+function catalogLabel(item: CatalogItem) {
+  return item.internal_code + " - " + item.name + " - " + money(item.price);
+}
+
 export default function CotizacionesPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
@@ -179,6 +183,8 @@ export default function CotizacionesPage() {
   const [draftItems, setDraftItems] = useState<DraftItem[]>([]);
 
   const [catalogItemId, setCatalogItemId] = useState("");
+  const [catalogSearch, setCatalogSearch] = useState("");
+  const [catalogPickerOpen, setCatalogPickerOpen] = useState(false);
   const [description, setDescription] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [unitPrice, setUnitPrice] = useState("0");
@@ -273,6 +279,30 @@ export default function CotizacionesPage() {
     });
   }, [quotes, clients, search, statusFilter]);
 
+  const catalogPickerResults = useMemo(() => {
+    const activeItems = catalogItems.filter((item) => item.active !== false);
+    const term = catalogSearch.toLowerCase().trim();
+
+    if (!term) {
+      return activeItems.slice(0, 10);
+    }
+
+    return activeItems
+      .filter((item) =>
+        [
+          item.internal_code,
+          item.name,
+          item.item_type,
+          item.short_description,
+          item.price_type,
+          String(item.price ?? ""),
+        ]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(term))
+      )
+      .slice(0, 12);
+  }, [catalogItems, catalogSearch]);
+
   function clientName(id: string | null) {
     return clients.find((client) => client.id === id)?.full_name ?? "Sin cliente";
   }
@@ -287,6 +317,8 @@ export default function CotizacionesPage() {
 
   function clearItemForm() {
     setCatalogItemId("");
+    setCatalogSearch("");
+    setCatalogPickerOpen(false);
     setDescription("");
     setQuantity("1");
     setUnitPrice("0");
@@ -311,16 +343,28 @@ export default function CotizacionesPage() {
     const item = catalogItems.find((catalog) => catalog.id === id);
 
     if (!item) {
+      setCatalogSearch("");
       setDescription("");
       setUnitPrice("0");
       setRequiresAdvance(false);
       return;
     }
 
+    setCatalogSearch(catalogLabel(item));
+    setCatalogPickerOpen(false);
     setDescription(item.name + (item.short_description ? " - " + item.short_description : ""));
     setUnitPrice(String(item.price ?? 0));
     setRequiresAdvance(Boolean(item.requires_advance));
     if (!deliveryTime && item.delivery_time) setDeliveryTime(item.delivery_time);
+  }
+
+  function setManualCatalogItem() {
+    setCatalogItemId("");
+    setCatalogSearch("");
+    setCatalogPickerOpen(false);
+    setDescription("");
+    setUnitPrice("0");
+    setRequiresAdvance(false);
   }
 
   function addDraftItem() {
@@ -831,14 +875,73 @@ export default function CotizacionesPage() {
 
             <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1.5fr .45fr .55fr .55fr", gap: 12 }}>
               <Field label="Catálogo">
-                <select value={catalogItemId} onChange={(e) => onSelectCatalog(e.target.value)} style={inputStyle}>
-                  <option value="">Ítem manual</option>
-                  {catalogItems.filter((item) => item.active !== false).map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.internal_code} - {item.name} - {money(item.price)}
-                    </option>
-                  ))}
-                </select>
+                <div style={{ position: "relative" }}>
+                  <div style={catalogSearchBoxStyle}>
+                    <span style={{ color: "#0F766E", fontWeight: 900 }}>🔍</span>
+                    <input
+                      value={catalogSearch}
+                      onFocus={() => setCatalogPickerOpen(true)}
+                      onChange={(e) => {
+                        setCatalogSearch(e.target.value);
+                        setCatalogItemId("");
+                        setCatalogPickerOpen(true);
+                      }}
+                      placeholder="Buscar producto o servicio..."
+                      style={catalogSearchInputStyle}
+                    />
+                    {catalogSearch && (
+                      <button
+                        type="button"
+                        onClick={setManualCatalogItem}
+                        style={catalogClearButtonStyle}
+                        title="Limpiar búsqueda"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+
+                  {catalogPickerOpen && (
+                    <div style={catalogDropdownStyle}>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={setManualCatalogItem}
+                        style={catalogOptionStyle}
+                      >
+                        <strong>Ítem manual</strong>
+                        <span style={catalogOptionMetaStyle}>
+                          Escribir descripción y valor manualmente
+                        </span>
+                      </button>
+
+                      {catalogPickerResults.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => onSelectCatalog(item.id)}
+                          style={{
+                            ...catalogOptionStyle,
+                            background: catalogItemId === item.id ? "#EAF8F5" : "#FFFFFF",
+                          }}
+                        >
+                          <strong>{item.internal_code} - {item.name}</strong>
+                          <span style={catalogOptionMetaStyle}>
+                            {item.item_type} · {money(item.price)}
+                            {item.short_description ? " · " + item.short_description : ""}
+                          </span>
+                        </button>
+                      ))}
+
+                      {catalogPickerResults.length === 0 && (
+                        <div style={catalogNoResultsStyle}>
+                          No se encontraron productos o servicios.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </Field>
 
               <Field label="Descripción">
@@ -1063,6 +1166,75 @@ const inputStyle: CSSProperties = {
   color: "#0B1F33",
   outline: "none",
   fontWeight: 700,
+};
+
+const catalogSearchBoxStyle: CSSProperties = {
+  ...inputStyle,
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+};
+
+const catalogSearchInputStyle: CSSProperties = {
+  border: 0,
+  outline: "none",
+  width: "100%",
+  background: "transparent",
+  color: "#0B1F33",
+  fontWeight: 800,
+};
+
+const catalogClearButtonStyle: CSSProperties = {
+  border: 0,
+  background: "transparent",
+  color: "#5D7485",
+  cursor: "pointer",
+  fontSize: 22,
+  fontWeight: 900,
+  lineHeight: 1,
+};
+
+const catalogDropdownStyle: CSSProperties = {
+  position: "absolute",
+  zIndex: 20,
+  left: 0,
+  right: 0,
+  top: "calc(100% + 8px)",
+  maxHeight: 330,
+  overflowY: "auto",
+  background: "#FFFFFF",
+  border: "1px solid #D8E8E5",
+  borderRadius: 18,
+  boxShadow: "0 18px 45px rgba(11, 31, 51, 0.16)",
+  padding: 8,
+};
+
+const catalogOptionStyle: CSSProperties = {
+  width: "100%",
+  border: 0,
+  background: "#FFFFFF",
+  color: "#0B1F33",
+  cursor: "pointer",
+  display: "block",
+  textAlign: "left",
+  borderRadius: 14,
+  padding: "11px 12px",
+  fontWeight: 800,
+};
+
+const catalogOptionMetaStyle: CSSProperties = {
+  display: "block",
+  color: "#5D7485",
+  fontSize: 12,
+  fontWeight: 700,
+  marginTop: 3,
+};
+
+const catalogNoResultsStyle: CSSProperties = {
+  padding: 14,
+  color: "#5D7485",
+  fontWeight: 800,
+  textAlign: "center",
 };
 
 const checkStyle: CSSProperties = {
