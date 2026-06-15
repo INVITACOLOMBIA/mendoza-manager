@@ -54,6 +54,187 @@ type FormState = {
   active: boolean;
 };
 
+
+type ImportRow = {
+  internal_code: string;
+  barcode: string;
+  name: string;
+  item_type: string;
+  category_name: string;
+  short_description: string;
+  long_description: string;
+  price_type: string;
+  price: string;
+  cost: string;
+  stock: string;
+  stock_minimum: string;
+  image_url: string;
+  banner_url: string;
+  delivery_time: string;
+  requires_advance: string;
+  active: string;
+};
+
+const importColumns = [
+  "internal_code",
+  "barcode",
+  "name",
+  "item_type",
+  "category_name",
+  "short_description",
+  "long_description",
+  "price_type",
+  "price",
+  "cost",
+  "stock",
+  "stock_minimum",
+  "image_url",
+  "banner_url",
+  "delivery_time",
+  "requires_advance",
+  "active",
+];
+
+const templateRows = [
+  {
+    internal_code: "DIS-001",
+    barcode: "",
+    name: "Volante sencillo",
+    item_type: "servicio",
+    category_name: "Diseño para impresión",
+    short_description: "Diseño de volante una cara listo para impresión",
+    long_description: "Incluye diseño gráfico, preparación para impresión en PDF y hasta 2 rondas de ajustes.",
+    price_type: "fijo",
+    price: "35000",
+    cost: "",
+    stock: "",
+    stock_minimum: "",
+    image_url: "",
+    banner_url: "",
+    delivery_time: "1 a 2 días hábiles",
+    requires_advance: "si",
+    active: "si",
+  },
+  {
+    internal_code: "MEN-001",
+    barcode: "",
+    name: "Menú restaurante 1 página",
+    item_type: "servicio",
+    category_name: "Menús restaurante",
+    short_description: "Diseño de menú sencillo imprimible",
+    long_description: "Diseño de carta o menú de restaurante por página, listo para impresión.",
+    price_type: "desde",
+    price: "60000",
+    cost: "",
+    stock: "",
+    stock_minimum: "",
+    image_url: "",
+    banner_url: "",
+    delivery_time: "2 a 3 días hábiles",
+    requires_advance: "si",
+    active: "si",
+  },
+  {
+    internal_code: "FOTO-001",
+    barcode: "",
+    name: "Restauración básica de foto antigua",
+    item_type: "servicio",
+    category_name: "Restauración fotográfica",
+    short_description: "Limpieza leve y mejora general de fotografía",
+    long_description: "Mejora de color, brillo, contraste y nitidez para fotos antiguas o deterioradas.",
+    price_type: "desde",
+    price: "30000",
+    cost: "",
+    stock: "",
+    stock_minimum: "",
+    image_url: "",
+    banner_url: "",
+    delivery_time: "1 a 3 días hábiles",
+    requires_advance: "si",
+    active: "si",
+  },
+];
+
+function normalizeBoolean(value: string) {
+  const normalized = value.trim().toLowerCase();
+  return ["si", "sí", "true", "1", "activo", "activa"].includes(normalized);
+}
+
+function csvEscape(value: string | number | null | undefined) {
+  const text = String(value ?? "");
+  if (text.includes(",") || text.includes("\"") || text.includes("\n")) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
+function parseCsvLine(line: string) {
+  const values: string[] = [];
+  let current = "";
+  let insideQuotes = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    const nextChar = line[index + 1];
+
+    if (char === "\"" && insideQuotes && nextChar === "\"") {
+      current += "\"";
+      index += 1;
+    } else if (char === "\"") {
+      insideQuotes = !insideQuotes;
+    } else if (char === "," && !insideQuotes) {
+      values.push(current);
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+
+  values.push(current);
+  return values.map((value) => value.trim());
+}
+
+function parseCsv(text: string): ImportRow[] {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length < 2) return [];
+
+  const headers = parseCsvLine(lines[0]).map((header) => header.trim());
+  const rows: ImportRow[] = [];
+
+  lines.slice(1).forEach((line) => {
+    const values = parseCsvLine(line);
+    const row = Object.fromEntries(
+      headers.map((header, index) => [header, values[index] || ""])
+    ) as ImportRow;
+
+    rows.push({
+      internal_code: row.internal_code || "",
+      barcode: row.barcode || "",
+      name: row.name || "",
+      item_type: row.item_type || "servicio",
+      category_name: row.category_name || "",
+      short_description: row.short_description || "",
+      long_description: row.long_description || "",
+      price_type: row.price_type || "fijo",
+      price: row.price || "",
+      cost: row.cost || "",
+      stock: row.stock || "",
+      stock_minimum: row.stock_minimum || "",
+      image_url: row.image_url || "",
+      banner_url: row.banner_url || "",
+      delivery_time: row.delivery_time || "",
+      requires_advance: row.requires_advance || "no",
+      active: row.active || "si",
+    });
+  });
+
+  return rows;
+}
+
 const emptyForm: FormState = {
   internal_code: "",
   barcode: "",
@@ -110,6 +291,13 @@ export default function CatalogoPage() {
   const [typeFilter, setTypeFilter] = useState("todos");
   const [statusFilter, setStatusFilter] = useState("todos");
   const [newCategoryName, setNewCategoryName] = useState("");
+
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importPreview, setImportPreview] = useState<ImportRow[]>([]);
+  const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [importing, setImporting] = useState(false);
+
 
   async function loadData() {
     setLoading(true);
@@ -293,6 +481,185 @@ export default function CatalogoPage() {
     await loadData();
   }
 
+
+  function downloadTemplate() {
+    const csv = [
+      importColumns.join(","),
+      ...templateRows.map((row) =>
+        importColumns.map((column) => csvEscape(row[column as keyof ImportRow])).join(",")
+      ),
+    ].join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "plantilla_catalogo_mendoza.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function validateImportRows(rows: ImportRow[]) {
+    const errors: string[] = [];
+    const allowedTypes = ["servicio", "digital", "producto", "programa"];
+    const allowedPriceTypes = ["fijo", "desde", "personalizado"];
+    const seenCodes = new Set<string>();
+
+    rows.forEach((row, index) => {
+      const line = index + 2;
+      const code = row.internal_code.trim();
+
+      if (!code) errors.push(`Fila ${line}: el código interno es obligatorio.`);
+      if (!row.name.trim()) errors.push(`Fila ${line}: el nombre es obligatorio.`);
+
+      if (code && seenCodes.has(code)) {
+        errors.push(`Fila ${line}: el código interno ${code} está repetido en el archivo.`);
+      }
+      seenCodes.add(code);
+
+      if (!allowedTypes.includes(row.item_type.trim().toLowerCase())) {
+        errors.push(`Fila ${line}: el tipo debe ser servicio, digital, producto o programa.`);
+      }
+
+      if (!allowedPriceTypes.includes(row.price_type.trim().toLowerCase())) {
+        errors.push(`Fila ${line}: el tipo de precio debe ser fijo, desde o personalizado.`);
+      }
+
+      if (row.price.trim() && Number.isNaN(Number(row.price))) {
+        errors.push(`Fila ${line}: el precio debe ser numérico.`);
+      }
+
+      if (row.cost.trim() && Number.isNaN(Number(row.cost))) {
+        errors.push(`Fila ${line}: el costo debe ser numérico.`);
+      }
+
+      if (row.stock.trim() && Number.isNaN(Number(row.stock))) {
+        errors.push(`Fila ${line}: el stock debe ser numérico.`);
+      }
+
+      if (row.stock_minimum.trim() && Number.isNaN(Number(row.stock_minimum))) {
+        errors.push(`Fila ${line}: el stock mínimo debe ser numérico.`);
+      }
+    });
+
+    return errors;
+  }
+
+  function handleImportFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const content = String(reader.result || "");
+      const rows = parseCsv(content);
+      const errors = validateImportRows(rows);
+
+      setImportText(content);
+      setImportPreview(rows);
+      setImportErrors(errors);
+
+      if (rows.length === 0) {
+        setImportErrors(["El archivo no contiene registros para importar."]);
+      }
+    };
+
+    reader.readAsText(file, "utf-8");
+  }
+
+  async function importCatalog() {
+    if (importPreview.length === 0) {
+      alert("Primero carga un archivo CSV con registros.");
+      return;
+    }
+
+    const errors = validateImportRows(importPreview);
+    setImportErrors(errors);
+
+    if (errors.length > 0) {
+      alert("Corrige los errores antes de importar.");
+      return;
+    }
+
+    setImporting(true);
+
+    const categoryNames = Array.from(
+      new Set(
+        importPreview
+          .map((row) => row.category_name.trim())
+          .filter(Boolean)
+      )
+    );
+
+    const categoryNameToId = new Map(
+      categories.map((category) => [category.name.trim().toLowerCase(), category.id])
+    );
+
+    for (const categoryName of categoryNames) {
+      const key = categoryName.toLowerCase();
+
+      if (!categoryNameToId.has(key)) {
+        const result = await supabase
+          .from("categories")
+          .insert({
+            name: categoryName,
+            description: null,
+            active: true,
+          })
+          .select("id")
+          .single();
+
+        if (result.error) {
+          setImporting(false);
+          alert(`No se pudo crear la categoría ${categoryName}: ${result.error.message}`);
+          return;
+        }
+
+        categoryNameToId.set(key, result.data.id);
+      }
+    }
+
+    const payload = importPreview.map((row) => ({
+      internal_code: row.internal_code.trim(),
+      barcode: cleanText(row.barcode),
+      name: row.name.trim(),
+      item_type: row.item_type.trim().toLowerCase(),
+      category_id: row.category_name.trim()
+        ? categoryNameToId.get(row.category_name.trim().toLowerCase()) || null
+        : null,
+      short_description: cleanText(row.short_description),
+      long_description: cleanText(row.long_description),
+      price_type: row.price_type.trim().toLowerCase(),
+      price: toNumber(row.price),
+      cost: toNumber(row.cost),
+      stock: toInteger(row.stock),
+      stock_minimum: toInteger(row.stock_minimum),
+      image_url: cleanText(row.image_url),
+      banner_url: cleanText(row.banner_url),
+      delivery_time: cleanText(row.delivery_time),
+      requires_advance: normalizeBoolean(row.requires_advance),
+      active: row.active.trim() === "" ? true : normalizeBoolean(row.active),
+      updated_at: new Date().toISOString(),
+    }));
+
+    const result = await supabase.from("catalog_items").insert(payload);
+
+    setImporting(false);
+
+    if (result.error) {
+      alert("No se pudo importar el catálogo: " + result.error.message);
+      return;
+    }
+
+    setImportText("");
+    setImportPreview([]);
+    setImportErrors([]);
+    setImportOpen(false);
+    await loadData();
+    alert(`${payload.length} registro(s) importados correctamente.`);
+  }
+
   async function createCategory() {
     const name = newCategoryName.trim();
 
@@ -340,6 +707,139 @@ export default function CatalogoPage() {
             Actualizar
           </button>
         </header>
+
+        <section className="rounded-3xl border border-teal-100 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.25em] text-teal-700">
+                Carga rápida
+              </p>
+              <h2 className="mt-2 text-2xl font-black">Importar catálogo masivamente</h2>
+              <p className="mt-2 font-semibold text-slate-500">
+                Sube un archivo CSV para crear varios productos o servicios sin eliminar el registro manual.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={downloadTemplate}
+                className="rounded-2xl border border-teal-200 bg-teal-50 px-5 py-3 font-black text-slate-900 transition hover:bg-teal-100"
+              >
+                Descargar plantilla CSV
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setImportOpen(!importOpen)}
+                className="rounded-2xl bg-slate-950 px-5 py-3 font-black text-white transition hover:bg-teal-800"
+              >
+                {importOpen ? "Ocultar importación" : "Importar catálogo"}
+              </button>
+            </div>
+          </div>
+
+          {importOpen && (
+            <div className="mt-6 space-y-5 rounded-3xl border border-slate-200 bg-slate-50 p-5">
+              <div className="grid gap-4 lg:grid-cols-3">
+                <label className="space-y-2 lg:col-span-2">
+                  <span className="text-sm font-black text-slate-700">
+                    Archivo CSV
+                  </span>
+                  <input
+                    type="file"
+                    accept=".csv,text/csv"
+                    onChange={handleImportFile}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 font-semibold outline-none focus:border-teal-500"
+                  />
+                </label>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-sm font-bold text-slate-500">Registros detectados</p>
+                  <p className="mt-2 text-3xl font-black">{importPreview.length}</p>
+                </div>
+              </div>
+
+              {importErrors.length > 0 && (
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
+                  <p className="font-black text-red-700">Errores encontrados</p>
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm font-semibold text-red-700">
+                    {importErrors.map((error) => (
+                      <li key={error}>{error}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {importPreview.length > 0 && (
+                <div className="space-y-4">
+                  <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+                    <table className="w-full min-w-[900px] border-collapse text-left">
+                      <thead>
+                        <tr className="bg-teal-50 text-xs uppercase text-slate-700">
+                          <th className="px-4 py-3 font-black">Código</th>
+                          <th className="px-4 py-3 font-black">Nombre</th>
+                          <th className="px-4 py-3 font-black">Tipo</th>
+                          <th className="px-4 py-3 font-black">Categoría</th>
+                          <th className="px-4 py-3 font-black">Precio</th>
+                          <th className="px-4 py-3 font-black">Entrega</th>
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {importPreview.slice(0, 10).map((row, index) => (
+                          <tr key={`${row.internal_code}-${index}`} className="border-t border-slate-100">
+                            <td className="px-4 py-3 font-black">{row.internal_code}</td>
+                            <td className="px-4 py-3 font-semibold">{row.name}</td>
+                            <td className="px-4 py-3 font-semibold">{row.item_type}</td>
+                            <td className="px-4 py-3 font-semibold">{row.category_name || "Sin categoría"}</td>
+                            <td className="px-4 py-3 font-black">{money(toNumber(row.price))}</td>
+                            <td className="px-4 py-3 font-semibold">{row.delivery_time || "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {importPreview.length > 10 && (
+                    <p className="text-sm font-bold text-slate-500">
+                      Vista previa de los primeros 10 registros.
+                    </p>
+                  )}
+
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={importCatalog}
+                      disabled={importing || importErrors.length > 0}
+                      className="rounded-2xl bg-teal-700 px-6 py-4 font-black text-white transition hover:bg-teal-800 disabled:opacity-50"
+                    >
+                      {importing ? "Importando..." : "Confirmar importación"}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setImportText("");
+                        setImportPreview([]);
+                        setImportErrors([]);
+                      }}
+                      className="rounded-2xl border border-slate-300 px-6 py-4 font-black text-slate-700 transition hover:bg-slate-100"
+                    >
+                      Limpiar archivo
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {importText && importPreview.length === 0 && importErrors.length === 0 && (
+                <p className="font-bold text-slate-500">
+                  El archivo fue leído, pero no se encontraron filas válidas.
+                </p>
+              )}
+            </div>
+          )}
+        </section>
 
         <section className="grid gap-4 md:grid-cols-3">
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
