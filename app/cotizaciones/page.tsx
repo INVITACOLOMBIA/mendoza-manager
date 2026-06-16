@@ -564,9 +564,33 @@ export default function CotizacionesPage() {
     if (error) {
       setMessage("No se pudo aceptar: " + error.message);
     } else {
-      setMessage("Cotización marcada como aceptada.");
+      setMessage("Cotización marcada como aceptada. Ya puedes facturarla desde el botón Facturar.");
       await loadData();
     }
+  }
+
+  async function facturarQuote(quote: Quote) {
+    setLoading(true);
+    setMessage("");
+
+    if (quote.status !== "aceptada") {
+      const { error } = await supabase
+        .from("quotes")
+        .update({
+          status: "aceptada",
+          accepted_at: quote.accepted_at || new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", quote.id);
+
+      if (error) {
+        setMessage("No se pudo aceptar la cotización antes de facturar: " + error.message);
+        setLoading(false);
+        return;
+      }
+    }
+
+    window.location.href = "/facturacion?quoteId=" + encodeURIComponent(quote.id);
   }
 
   function summaryText(quote: Quote) {
@@ -1103,6 +1127,10 @@ export default function CotizacionesPage() {
 
                   <button type="button" onClick={() => markAccepted(quote)} style={softButtonStyle}>
                     Marcar aceptada
+                  </button>
+
+                  <button type="button" onClick={() => facturarQuote(quote)} style={darkButtonStyle}>
+                    {quote.status === "aceptada" ? "Facturar" : "Aceptar y facturar"}
                   </button>
 
                   <button type="button" onClick={() => deleteQuote(quote)} style={dangerButtonStyle}>
