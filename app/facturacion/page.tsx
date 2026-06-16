@@ -49,6 +49,30 @@ type SaleItemDraft = {
   total: number;
 };
 
+type QuoteImport = {
+  id: string;
+  quote_number: string;
+  client_id: string | null;
+  status: string;
+  subtotal: number | null;
+  discount: number | null;
+  total: number | null;
+  valid_until: string | null;
+  delivery_time: string | null;
+  notes: string | null;
+};
+
+type QuoteItemImport = {
+  id: string;
+  quote_id: string;
+  catalog_item_id: string | null;
+  description: string;
+  quantity: number | null;
+  unit_price: number | null;
+  total: number | null;
+  requires_advance: boolean | null;
+};
+
 function money(value: number | null | undefined) {
   return new Intl.NumberFormat("es-CO", {
     style: "currency",
@@ -105,6 +129,7 @@ export default function FacturacionPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [importedQuoteId, setImportedQuoteId] = useState<string | null>(null);
 
   async function loadData() {
     setLoading(true);
@@ -116,14 +141,23 @@ export default function FacturacionPage() {
       supabase.from("sales").select("*").order("created_at", { ascending: false }),
     ]);
 
+    const catalogRows = (catalogRes.data ?? []) as CatalogItem[];
+    const salesRows = (salesRes.data ?? []) as Sale[];
+
     if (!clientsRes.error) setClients((clientsRes.data ?? []) as Client[]);
-    if (!catalogRes.error) setCatalogItems((catalogRes.data ?? []) as CatalogItem[]);
-    if (!salesRes.error) setSales((salesRes.data ?? []) as Sale[]);
+    if (!catalogRes.error) setCatalogItems(catalogRows);
+    if (!salesRes.error) setSales(salesRows);
 
     const errors = [clientsRes.error, catalogRes.error, salesRes.error].filter(Boolean);
 
     if (errors.length) {
       setMessage("Algunos datos no se pudieron cargar. Revisa permisos o columnas.");
+    }
+
+    const quoteId = new URLSearchParams(window.location.search).get("quoteId");
+
+    if (quoteId && quoteId !== importedQuoteId) {
+      await importQuoteToSale(quoteId, catalogRows, salesRows);
     }
 
     setLoading(false);
@@ -162,6 +196,72 @@ export default function FacturacionPage() {
         .some((value) => String(value).toLowerCase().includes(term));
     });
   }, [sales, clients, search]);
+
+  async function importQuoteToSale(quoteId: string, catalogRows: CatalogItem[], salesRows: Sale[]) {
+    const alreadyExists = salesRows.some((sale) =>
+      String(sale.notes ?? "").includes("Cotización origen: " + quoteId)
+    );
+
+    if (alreadyExists) {
+      setImportedQuoteId(quoteId);
+      setMessage("Esta cotización ya aparece asociada a una venta registrada. Revisa ventas registradas antes de facturar otra vez.");
+      return;
+    }
+
+    const [quoteRes, quoteItemsRes] = await Promise.all([
+      supabase.from("quotes").select("*").eq("id", quoteId).maybeSingle(),
+      supabase.from("quote_items").select("*").eq("quote_id", quoteId).order("created_at", { ascending: true }),
+    ]);
+
+    if (quoteRes.error || !quoteRes.data) {
+      setMessage("No se pudo cargar la cotización para facturar.");
+      return;
+    }
+
+    if (quoteItemsRes.error) {
+      setMessage("No se pudieron cargar los ítems de la cotización.");
+      return;
+    }
+
+    const quote = quoteRes.data as QuoteImport;
+    const quoteRows = (quoteItemsRes.data ?? []) as QuoteItemImport[];
+
+    setImportedQuoteId(quoteId);
+    setClientId(quote.client_id ?? "");
+    setDocumentType("Factura interna / comprobante");
+    setSaleType("venta");
+    setPaymentMethod("efectivo");
+    setInitialPayment("0");
+    setDiscount(String(Number(quote.discount ?? 0)));
+    setDueDate(quote.valid_until ?? "");
+
+    const importedItems = quoteRows.map((item) => {
+      const catalog = catalogRows.find((catalogItem) => catalogItem.id === item.catalog_item_id);
+
+      return {
+        catalog_item_id: item.catalog_item_id,
+        description: item.description,
+        item_type: catalog?.item_type || "servicio",
+        quantity: Number(item.quantity ?? 1),
+        unit_price: Number(item.unit_price ?? 0),
+        total: Number(item.total ?? 0),
+      };
+    });
+
+    setItems(importedItems);
+    setNotes(
+      [
+        "Venta generada desde cotización " + quote.quote_number + ".",
+        "Cotización origen: " + quoteId,
+        quote.notes ? "Notas de cotización: " + quote.notes : "",
+        quote.delivery_time ? "Tiempo de entrega cotizado: " + quote.delivery_time : "",
+      ]
+        .filter(Boolean)
+        .join("\n")
+    );
+
+    setMessage("Cotización " + quote.quote_number + " cargada en facturación. Revisa los datos y registra la venta.");
+  }
 
   function clientName(id: string | null) {
     return clients.find((client) => client.id === id)?.full_name ?? "Sin cliente";
@@ -231,6 +331,7 @@ export default function FacturacionPage() {
     setQuantity("1");
     setUnitPrice("0");
     setItems([]);
+    setImportedQuoteId(null);
   }
 
   async function createSale(event: FormEvent) {
@@ -284,6 +385,16 @@ export default function FacturacionPage() {
     }
 
     const saleId = saleRes.data.id as string;
+
+    if (importedQuoteId) {
+      await supabase
+        .from("quotes")
+        .update({
+          status: "facturada",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", importedQuoteId);
+    }
 
     const itemRows = items.map((item) => ({
       sale_id: saleId,
@@ -391,7 +502,7 @@ export default function FacturacionPage() {
 
         <form onSubmit={createSale} style={cardStyle}>
           <h2 style={{ marginTop: 0, fontSize: 24, fontWeight: 900 }}>
-            Nueva venta
+            {importedQuoteId ? "Facturar cotización aceptada" : "Nueva venta"}
           </h2>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
