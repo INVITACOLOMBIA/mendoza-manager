@@ -568,6 +568,77 @@ export default function CatalogoPage() {
     reader.readAsText(file, "utf-8");
   }
 
+
+  async function getOrCreateCategoryId(
+    categoryName: string,
+    categoryNameToId: Map<string, string>
+  ) {
+    const name = categoryName.trim();
+    const key = name.toLowerCase();
+
+    if (!name) return null;
+
+    const cachedId = categoryNameToId.get(key);
+    if (cachedId) return cachedId;
+
+    const { data: existingCategory, error: existingError } = await supabase
+      .from("categories")
+      .select("id")
+      .ilike("name", name)
+      .maybeSingle();
+
+    if (existingError) {
+      throw existingError;
+    }
+
+    if (existingCategory?.id) {
+      categoryNameToId.set(key, existingCategory.id);
+      return existingCategory.id as string;
+    }
+
+    const { data: newCategory, error: insertError } = await supabase
+      .from("categories")
+      .insert({
+        name,
+        description: null,
+        active: true,
+      })
+      .select("id")
+      .single();
+
+    if (insertError) {
+      const isDuplicate =
+        insertError.message.toLowerCase().includes("duplicate") ||
+        insertError.code === "23505";
+
+      if (isDuplicate) {
+        const { data: retryCategory, error: retryError } = await supabase
+          .from("categories")
+          .select("id")
+          .ilike("name", name)
+          .maybeSingle();
+
+        if (retryError) {
+          throw retryError;
+        }
+
+        if (retryCategory?.id) {
+          categoryNameToId.set(key, retryCategory.id);
+          return retryCategory.id as string;
+        }
+      }
+
+      throw insertError;
+    }
+
+    if (newCategory?.id) {
+      categoryNameToId.set(key, newCategory.id);
+      return newCategory.id as string;
+    }
+
+    return null;
+  }
+
   async function importCatalog() {
     if (importPreview.length === 0) {
       alert("Primero carga un archivo CSV con registros.");
@@ -597,26 +668,16 @@ export default function CatalogoPage() {
     );
 
     for (const categoryName of categoryNames) {
-      const key = categoryName.toLowerCase();
-
-      if (!categoryNameToId.has(key)) {
-        const result = await supabase
-          .from("categories")
-          .insert({
-            name: categoryName,
-            description: null,
-            active: true,
-          })
-          .select("id")
-          .single();
-
-        if (result.error) {
-          setImporting(false);
-          alert(`No se pudo crear la categoría ${categoryName}: ${result.error.message}`);
-          return;
-        }
-
-        categoryNameToId.set(key, result.data.id);
+      try {
+        await getOrCreateCategoryId(categoryName, categoryNameToId);
+      } catch (error) {
+        setImporting(false);
+        alert(
+          `No se pudo preparar la categoría ${categoryName}: ${
+            error instanceof Error ? error.message : "Error desconocido"
+          }`
+        );
+        return;
       }
     }
 
@@ -668,6 +729,16 @@ export default function CatalogoPage() {
       return;
     }
 
+    const existing = categories.find(
+      (category) => category.name.trim().toLowerCase() === name.toLowerCase()
+    );
+
+    if (existing) {
+      alert("Esta categoría ya existe.");
+      setNewCategoryName("");
+      return;
+    }
+
     const result = await supabase.from("categories").insert({
       name,
       description: null,
@@ -675,7 +746,14 @@ export default function CatalogoPage() {
     });
 
     if (result.error) {
-      alert("No se pudo crear la categoría: " + result.error.message);
+      if (
+        result.error.message.toLowerCase().includes("duplicate") ||
+        result.error.code === "23505"
+      ) {
+        alert("Esta categoría ya existe.");
+      } else {
+        alert("No se pudo crear la categoría: " + result.error.message);
+      }
       return;
     }
 
