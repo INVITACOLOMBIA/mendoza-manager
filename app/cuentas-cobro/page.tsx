@@ -28,6 +28,17 @@ type Sale = {
   last_collection_account_id: string | null;
 };
 
+type SaleItem = {
+  id: string;
+  sale_id: string;
+  description: string | null;
+  item_type: string | null;
+  quantity: number | null;
+  unit_price: number | null;
+  total: number | null;
+  created_at: string | null;
+};
+
 type CollectionAccount = {
   id: string;
   account_number: string;
@@ -154,6 +165,20 @@ function cleanPhone(value: string | null) {
   return String(value ?? "").replace(/\D/g, "");
 }
 
+function escapeHtml(value: string | null | undefined) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function isGenericSaleDescription(value: string | null | undefined) {
+  const text = String(value ?? "").trim();
+  return !text || /^venta\s+/i.test(text) || text.toLowerCase() === "servicio no especificado";
+}
+
 function nextAccountNumber(accounts: CollectionAccount[]) {
   const last = accounts
     .map((account) => Number(String(account.account_number ?? "").replace(/\D/g, "")))
@@ -200,6 +225,7 @@ function paymentActive(method: PaymentMethod) {
 export default function CuentasCobroPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
+  const [saleItems, setSaleItems] = useState<SaleItem[]>([]);
   const [accounts, setAccounts] = useState<CollectionAccount[]>([]);
   const [items, setItems] = useState<CollectionAccountItem[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
@@ -222,9 +248,10 @@ export default function CuentasCobroPage() {
     setLoading(true);
     setMessage("");
 
-    const [clientsRes, salesRes, accountsRes, itemsRes, settingsRes, methodsRes] = await Promise.all([
+    const [clientsRes, salesRes, saleItemsRes, accountsRes, itemsRes, settingsRes, methodsRes] = await Promise.all([
       supabase.from("clients").select("id, full_name, phone, email, document_number").order("full_name"),
       supabase.from("sales").select("*").order("created_at", { ascending: false }),
+      supabase.from("sale_items").select("*").order("created_at", { ascending: true }),
       supabase.from("collection_accounts").select("*").order("created_at", { ascending: false }),
       supabase.from("collection_account_items").select("*").order("created_at", { ascending: true }),
       supabase.from("business_settings").select("*").limit(1).maybeSingle(),
@@ -233,6 +260,7 @@ export default function CuentasCobroPage() {
 
     if (!clientsRes.error) setClients((clientsRes.data ?? []) as Client[]);
     if (!salesRes.error) setSales((salesRes.data ?? []) as Sale[]);
+    if (!saleItemsRes.error) setSaleItems((saleItemsRes.data ?? []) as SaleItem[]);
     if (!accountsRes.error) setAccounts((accountsRes.data ?? []) as CollectionAccount[]);
     if (!itemsRes.error) setItems((itemsRes.data ?? []) as CollectionAccountItem[]);
 
@@ -261,7 +289,7 @@ export default function CuentasCobroPage() {
       setPaymentMethods(((methodsRes.data ?? []) as PaymentMethod[]).sort((a, b) => paymentOrder(a) - paymentOrder(b)));
     }
 
-    const errors = [clientsRes.error, salesRes.error, accountsRes.error, itemsRes.error].filter(Boolean);
+    const errors = [clientsRes.error, salesRes.error, saleItemsRes.error, accountsRes.error, itemsRes.error].filter(Boolean);
 
     if (errors.length) {
       setMessage("Algunos datos no se pudieron cargar. Revisa permisos o columnas.");
@@ -327,6 +355,33 @@ export default function CuentasCobroPage() {
 
   function accountItems(accountId: string) {
     return items.filter((item) => item.collection_account_id === accountId);
+  }
+
+  function itemsForSale(saleId: string | null) {
+    if (!saleId) return [];
+    return saleItems.filter((item) => item.sale_id === saleId);
+  }
+
+  function saleForItem(item: CollectionAccountItem) {
+    return sales.find((sale) => sale.id === item.sale_id) ?? null;
+  }
+
+  function serviceDescription(item: CollectionAccountItem) {
+    const savedDescription = String(item.description ?? "").trim();
+
+    if (!isGenericSaleDescription(savedDescription)) {
+      return savedDescription;
+    }
+
+    const descriptions = Array.from(
+      new Set(
+        itemsForSale(item.sale_id)
+          .map((saleItem) => String(saleItem.description ?? "").trim())
+          .filter(Boolean)
+      )
+    );
+
+    return descriptions.length ? descriptions.join(" · ") : "Servicio no especificado";
   }
 
   function toggleSale(id: string) {
@@ -432,17 +487,59 @@ export default function CuentasCobroPage() {
 
     const accountId = accountRes.data.id as string;
 
-    const rows = selectedSales.map((sale) => ({
-      collection_account_id: accountId,
-      sale_id: sale.id,
-      description: "Venta " + sale.sale_number,
-      service_date: String(sale.issued_at || sale.created_at || new Date().toISOString()).slice(0, 10),
-      quantity: 1,
-      unit_price: Number(sale.balance ?? 0),
-      total: Number(sale.balance ?? 0),
-      balance: Number(sale.balance ?? 0),
-      created_at: new Date().toISOString(),
-    }));
+    const rows = selectedSales.flatMap((sale) => {
+      const relatedItems = itemsForSale(sale.id);
+      const saleBalance = Math.max(Number(sale.balance ?? 0), 0);
+      const serviceDate = String(sale.issued_at || sale.created_at || new Date().toISOString()).slice(0, 10);
+      const createdAt = new Date().toISOString();
+
+      if (!relatedItems.length) {
+        return [{
+          collection_account_id: accountId,
+          sale_id: sale.id,
+          description: "Servicio no especificado",
+          service_date: serviceDate,
+          quantity: 1,
+          unit_price: saleBalance,
+          total: saleBalance,
+          balance: saleBalance,
+          created_at: createdAt,
+        }];
+      }
+
+      const originalTotal = relatedItems.reduce(
+        (sum, item) => sum + Math.max(Number(item.total ?? 0), 0),
+        0
+      );
+      let assignedBalance = 0;
+
+      return relatedItems.map((item, index) => {
+        const rawQuantity = Number(item.quantity ?? 1);
+        const quantity = rawQuantity > 0 ? rawQuantity : 1;
+        const isLast = index === relatedItems.length - 1;
+        const proportionalTotal = originalTotal > 0
+          ? Math.round(saleBalance * (Math.max(Number(item.total ?? 0), 0) / originalTotal))
+          : Math.round(saleBalance / relatedItems.length);
+        const remainingBalance = Math.max(saleBalance - assignedBalance, 0);
+        const lineTotal = isLast
+          ? remainingBalance
+          : Math.min(Math.max(proportionalTotal, 0), remainingBalance);
+
+        assignedBalance += lineTotal;
+
+        return {
+          collection_account_id: accountId,
+          sale_id: sale.id,
+          description: String(item.description ?? "").trim() || "Servicio no especificado",
+          service_date: serviceDate,
+          quantity,
+          unit_price: lineTotal / quantity,
+          total: lineTotal,
+          balance: lineTotal,
+          created_at: createdAt,
+        };
+      });
+    });
 
     const itemsRes = await supabase.from("collection_account_items").insert(rows);
 
@@ -554,7 +651,7 @@ export default function CuentasCobroPage() {
   function summaryText(account: CollectionAccount) {
     const client = clientData(account.client_id);
     const lines = accountItems(account.id)
-      .map((item) => "• " + item.description + ": " + money(item.total))
+      .map((item) => "• " + serviceDescription(item) + ": " + money(item.total))
       .join("\n");
 
     const activePaymentMethods = paymentMethods.filter(paymentActive);
@@ -769,6 +866,21 @@ export default function CuentasCobroPage() {
               text-align: right;
             }
 
+            .service-description {
+              font-weight: 700;
+              white-space: pre-line;
+              overflow-wrap: anywhere;
+            }
+
+            .service-reference {
+              display: block;
+              margin-top: 2px;
+              color: #5D7485;
+              font-size: 8px;
+              font-weight: 400;
+              overflow-wrap: anywhere;
+            }
+
             .total {
               margin-top: 7px;
               text-align: right;
@@ -908,21 +1020,28 @@ export default function CuentasCobroPage() {
           <table>
             <thead>
               <tr>
-                <th>Servicio / venta</th>
+                <th>Servicio prestado</th>
                 <th>Fecha</th>
                 <th>Cantidad</th>
                 <th>Total</th>
               </tr>
             </thead>
             <tbody>
-              ${rows.map((item) => `
+              ${rows.map((item) => {
+                const sale = saleForItem(item);
+                const reference = sale?.sale_number
+                  ? `<span class="service-reference">Referencia: ${escapeHtml(sale.sale_number)}</span>`
+                  : "";
+
+                return `
                 <tr>
-                  <td>${item.description}</td>
+                  <td><span class="service-description">${escapeHtml(serviceDescription(item))}</span>${reference}</td>
                   <td>${dateText(item.service_date)}</td>
                   <td>${Number(item.quantity ?? 1)}</td>
                   <td>${money(item.total)}</td>
                 </tr>
-              `).join("")}
+              `;
+              }).join("")}
             </tbody>
           </table>
 
